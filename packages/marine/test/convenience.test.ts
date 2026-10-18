@@ -1,6 +1,6 @@
 import { BatchedMesh, BoxGeometry, Mesh, Object3D, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { Body, MassProperties, World } from 'eulerjs';
+import { Body, MassProperties, World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SpectralWaves, SumOfSines, Voxels, WaterMesh } from '@eulerjs/marine';
 
 const calmSea = () => new Ocean({ waves: new SumOfSines({ waveCount: 0 }), density: 1000 });
@@ -84,7 +84,7 @@ describe('WaterMesh conveniences', () => {
 
 describe('Voxels re-export', () => {
   it('is the core class', async () => {
-    const core = await import('eulerjs');
+    const core = await import('@eulerjs/core');
     expect(Voxels).toBe(core.Voxels);
     expect(new Vector3()).toBeDefined();
   });

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { BufferGeometryLoader, MathUtils, Quaternion, Vector3 } from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Ocean, SpectralWaves, SumOfSines, Wind } from '@eulerjs/marine';
 import type { WaveSurface } from '@eulerjs/marine';
 import { createSailboatPhysics } from '../src/boat/sailboatPhysics.js';

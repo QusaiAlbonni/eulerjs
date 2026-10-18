@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { Body, PlaneCollider, World } from 'eulerjs';
+import { Body, PlaneCollider, World } from '@eulerjs/core';
 import { describe, expect, it } from 'vitest';
 import { CAR_LAYOUT } from '../src/car/carLayout.js';
 import { createCarPhysics, rideHeight } from '../src/car/createCarPhysics.js';

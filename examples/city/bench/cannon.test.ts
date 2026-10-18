@@ -1,7 +1,7 @@
 import * as CANNON from 'cannon-es';
 import { Matrix3, Quaternion, Scene, Vector3 } from 'three';
-import { BoxCollider, CapsuleCollider, ConeCollider, ConvexCollider, CylinderCollider, JavaScriptBackend, PlaneCollider, SphereCollider, World } from 'eulerjs';
-import type { Body, Collider, JavaScriptBackendOptions } from 'eulerjs';
+import { BoxCollider, CapsuleCollider, ConeCollider, ConvexCollider, CylinderCollider, JavaScriptBackend, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
+import type { Body, Collider, JavaScriptBackendOptions } from '@eulerjs/core';
 import { test } from 'vitest';
 import { createCity } from '../src/city/createCity.js';
 import { Crowd } from '../src/people/Crowd.js';

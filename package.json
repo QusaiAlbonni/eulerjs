@@ -3,14 +3,14 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/eulerjs",
+    "packages/core",
     "packages/marine",
     "packages/bvh",
     "packages/vehicle",
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run build -w eulerjs && npm run build -w @eulerjs/marine && npm run build -w @eulerjs/bvh && npm run build -w @eulerjs/vehicle",
+    "build": "npm run build -w @eulerjs/core && npm run build -w @eulerjs/marine && npm run build -w @eulerjs/bvh && npm run build -w @eulerjs/vehicle",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",

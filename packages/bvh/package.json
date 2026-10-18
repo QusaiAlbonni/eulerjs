@@ -38,7 +38,7 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "eulerjs": "^0.1.0",
+    "@eulerjs/core": "^0.1.0",
     "three": ">=0.166.0",
     "three-mesh-bvh": ">=0.9.0"
   },

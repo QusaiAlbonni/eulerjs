@@ -1,7 +1,7 @@
 import { Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Body, BoxCollider, HeightfieldCollider, JavaScriptBackend, MassProperties, PlaneCollider, World } from 'eulerjs';
-import type { JavaScriptBackendOptions } from 'eulerjs';
+import { Body, BoxCollider, HeightfieldCollider, JavaScriptBackend, MassProperties, PlaneCollider, World } from '@eulerjs/core';
+import type { JavaScriptBackendOptions } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
 
 const gravity = 9.81;

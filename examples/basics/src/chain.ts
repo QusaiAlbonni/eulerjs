@@ -1,6 +1,6 @@
 import { BoxGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { DistanceJoint, World } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { DistanceJoint, World } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { createStage, run } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 2, 10), lookAt: new Vector3(0, 1, 0) });

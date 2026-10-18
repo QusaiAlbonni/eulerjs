@@ -10,8 +10,8 @@ const PAGES = ['index', 'physics-bench', 'gpu-check'];
 export default defineConfig({
   resolve: {
     alias: [
-      { find: /^eulerjs$/, replacement: sourceOf('eulerjs') },
-      { find: /^eulerjs\/extend$/, replacement: sourceOf('eulerjs', 'extend') },
+      { find: /^@eulerjs\/core$/, replacement: sourceOf('core') },
+      { find: /^@eulerjs\/core\/extend$/, replacement: sourceOf('core', 'extend') },
       { find: /^@eulerjs\/marine$/, replacement: sourceOf('marine') },
       { find: /^@eulerjs\/marine\/webgpu$/, replacement: sourceOf('marine', 'webgpu/index') },
     ],

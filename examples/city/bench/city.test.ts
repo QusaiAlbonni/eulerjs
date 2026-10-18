@@ -1,11 +1,11 @@
 import { Scene, Vector3 } from 'three';
-import { World } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { World } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { test } from 'vitest';
 import { createCarPhysics } from '../src/car/createCarPhysics.js';
 import { BLOCK_PITCH, createCity } from '../src/city/createCity.js';
 import { Crowd } from '../src/people/Crowd.js';
-import { benchmarkBackend } from '../../../packages/eulerjs/bench/scenes.js';
+import { benchmarkBackend } from '../../../packages/core/bench/scenes.js';
 import { Autopilot } from './Autopilot.js';
 
 /**

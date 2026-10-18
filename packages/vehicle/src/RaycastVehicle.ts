@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { Behavior, Body, QueryHit, World } from 'eulerjs';
+import type { Behavior, Body, QueryHit, World } from '@eulerjs/core';
 
 export interface WheelOptions {
   /** Where the wheel's suspension is fixed to the chassis, in the body's frame. The wheel hangs below it, down the body's up axis. */

@@ -1,6 +1,6 @@
 import { BoxGeometry, CylinderGeometry, Mesh, MeshStandardMaterial, PlaneGeometry, Raycaster, SphereGeometry, Vector2, Vector3 } from 'three';
-import type { Body} from 'eulerjs';
-import { ConeTwistJoint, FixedJoint, HingeJoint, PlaneCollider, SliderJoint, SphereCollider, World } from 'eulerjs';
+import type { Body} from '@eulerjs/core';
+import { ConeTwistJoint, FixedJoint, HingeJoint, PlaneCollider, SliderJoint, SphereCollider, World } from '@eulerjs/core';
 import type { Object3D } from 'three';
 import { createStage, run, showStatus } from './stage.js';
 

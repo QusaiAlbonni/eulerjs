@@ -49,7 +49,7 @@ cars and triangle meshes.
 The same scenes in both engines, at 60 steps a second, with the same friction, pair finding and
 sleep thresholds; each engine keeps its own solver defaults (eulerjs soft step with 4 substeps,
 cannon-es 10 Gauss-Seidel iterations). Milliseconds of computing per simulated second, on a Ryzen 5
-4600H in Node 24: lower is better. From `npm run bench` (`packages/eulerjs/bench/cannon.test.ts`,
+4600H in Node 24: lower is better. From `npm run bench` (`packages/core/bench/cannon.test.ts`,
 `examples/city/bench/cannon.test.ts`).
 
 | Scene | eulerjs | cannon-es | |
@@ -82,7 +82,7 @@ with. Timings depend on the machine, so measure your own scenes too: `npm run be
 
 | Package | What it is |
 | --- | --- |
-| `eulerjs` | `World`, `Body`, `MassProperties`, `Voxels`, colliders, joints, the JavaScript backend, the plugin, behaviour and backend interfaces |
+| `@eulerjs/core` | `World`, `Body`, `MassProperties`, `Voxels`, colliders, joints, the JavaScript backend, the plugin, behaviour and backend interfaces |
 | `@eulerjs/marine` | `SumOfSines` and `SpectralWaves` seas, `Ocean`, `Wind`, `Buoyancy`, `Foil` and polars, `WaterMesh`; `SpectralWater` in `@eulerjs/marine/webgpu` |
 | `@eulerjs/bvh` | `MeshCollider`: any triangle mesh as a static or kinematic collider, on three-mesh-bvh |
 | `@eulerjs/vehicle` | `RaycastVehicle`: wheels on springs under a chassis, with tyres that grip up to a limit, on any ground |
@@ -90,13 +90,13 @@ with. Timings depend on the machine, so measure your own scenes too: `npm run be
 All need `three` 0.166 or later as a peer dependency, except `@eulerjs/marine/webgpu`, the
 spectral sea's water, which needs 0.186 or later.
 `@eulerjs/bvh` also needs `three-mesh-bvh` 0.9 or later. Plugins that add collider
-shapes build on `eulerjs/extend`.
+shapes build on `@eulerjs/core/extend`.
 
 ## Using it
 
 ```ts
 import * as THREE from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 
 const world = new World(); // gravity (0, -9.81, 0), 60 fixed steps per second
 
@@ -153,7 +153,7 @@ const body = hit && world.bodyOf(hit.object, hit.instanceId);
 ### Collisions and joints
 
 ```ts
-import { Body, CapsuleCollider, DistanceJoint, PlaneCollider, SphereCollider, World } from 'eulerjs';
+import { Body, CapsuleCollider, DistanceJoint, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
 
 world.addBody(floor, { type: 'static', collider: new PlaneCollider({ friction: 0.8 }) });
 world.addBody(crate, { density: 300, collider: 'box' }); // fitted to the mesh, as 'sphere', 'cylinder' and so on are
@@ -231,7 +231,7 @@ const caught = world.overlap(new SphereCollider({ radius: 4 }), blastCentre);
 ### Joints
 
 ```ts
-import { ConeTwistJoint, FixedJoint, HingeJoint, SixDofJoint, SliderJoint, TargetJoint } from 'eulerjs';
+import { ConeTwistJoint, FixedJoint, HingeJoint, SixDofJoint, SliderJoint, TargetJoint } from '@eulerjs/core';
 
 world.addJoint(new HingeJoint({ bodyA: frame, bodyB: door, anchor: hingePoint, axis: up, limits: { lower: 0, upper: 1.6 } }));
 world.addJoint(new HingeJoint({ bodyA: car, bodyB: wheel, anchor: hub, axis: axle, motor: { targetVelocity: 20, maxForce: 300 } }));
@@ -281,7 +281,7 @@ What actually simulates a world is its backend, so the solver can be replaced, b
 algorithm or a WebAssembly engine, without changing code written against `World` and `Body`:
 
 ```ts
-import { JavaScriptBackend, World } from 'eulerjs';
+import { JavaScriptBackend, World } from '@eulerjs/core';
 
 const world = new World({ backend: new JavaScriptBackend() }); // the default
 ```

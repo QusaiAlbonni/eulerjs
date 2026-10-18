@@ -1,6 +1,6 @@
 import { Color, Timer } from 'three/webgpu';
 import Stats from 'three/addons/libs/stats.module.js';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Ocean, SpectralWaves, Wind } from '@eulerjs/marine';
 import { seaFog, SpectralWater } from '@eulerjs/marine/webgpu';
 import { createSailboat } from './boat/createSailboat.js';

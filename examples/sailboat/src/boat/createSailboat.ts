@@ -1,7 +1,7 @@
 import { Matrix4, Mesh, Quaternion, SpotLight, Vector3 } from 'three';
 import type { Object3D, Scene } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { Body, World } from 'eulerjs';
+import type { Body, World } from '@eulerjs/core';
 import type { Buoyancy, Ocean, WaveSurface, Wind } from '@eulerjs/marine';
 import { SailboatControls } from './SailboatControls.js';
 import { SAILBOAT_LAYOUT } from './sailboatLayout.js';

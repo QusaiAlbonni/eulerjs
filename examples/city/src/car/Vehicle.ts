@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { Behavior, Body, World } from 'eulerjs';
+import type { Behavior, Body, World } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
 import type { Wheel } from '@eulerjs/vehicle';
 import type { CarLayout } from './carLayout.js';

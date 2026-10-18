@@ -1,7 +1,7 @@
 import type { Vector3 } from 'three';
 import { BoxGeometry, IcosahedronGeometry, Mesh } from 'three';
-import { Body, ConvexCollider } from 'eulerjs';
-import type { BoxCollider } from 'eulerjs';
+import { Body, ConvexCollider } from '@eulerjs/core';
+import type { BoxCollider } from '@eulerjs/core';
 import { Buoyancy } from '@eulerjs/marine';
 import { describe, expect, it } from 'vitest';
 import { SailingScenario } from './sailboatScenario.js';

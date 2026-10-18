@@ -6,7 +6,7 @@ for you and why.
 ## Installing
 
 ```sh
-npm install eulerjs three
+npm install @eulerjs/core three
 ```
 
 `three` is a peer dependency: eulerjs works with the copy your app already uses, version 0.166 or
@@ -25,7 +25,7 @@ second half; the first half is ordinary three.js.
 
 ```ts
 import * as THREE from 'three';
-import { PlaneCollider, World } from 'eulerjs';
+import { PlaneCollider, World } from '@eulerjs/core';
 
 // The usual three.js setup.
 const renderer = new THREE.WebGLRenderer({ antialias: true });

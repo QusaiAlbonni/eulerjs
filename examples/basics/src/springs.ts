@@ -1,6 +1,6 @@
 import { BoxGeometry, BufferGeometry, Line, LineBasicMaterial, Mesh, MeshStandardMaterial, Raycaster, Vector2, Vector3 } from 'three';
-import { World } from 'eulerjs';
-import type { Behavior, Body, Plugin } from 'eulerjs';
+import { World } from '@eulerjs/core';
+import type { Behavior, Body, Plugin } from '@eulerjs/core';
 import { createStage, run } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 4, 11), lookAt: new Vector3(0, 3.5, 0) });

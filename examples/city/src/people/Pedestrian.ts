@@ -1,7 +1,7 @@
 import { CapsuleGeometry, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import type { Scene } from 'three';
-import { Body, CapsuleCollider, ConeTwistJoint, HingeJoint, TargetJoint } from 'eulerjs';
-import type { SixDofJoint, World } from 'eulerjs';
+import { Body, CapsuleCollider, ConeTwistJoint, HingeJoint, TargetJoint } from '@eulerjs/core';
+import type { SixDofJoint, World } from '@eulerjs/core';
 import { RAGDOLL_JOINTS, RAGDOLL_PARTS } from './ragdollLayout.js';
 import type { Clothing, PartName, RagdollJointLayout } from './ragdollLayout.js';
 import type { WalkerPlacement } from './routes.js';

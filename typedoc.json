@@ -1,8 +1,8 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
-    "packages/eulerjs/src/index.ts",
-    "packages/eulerjs/src/extend.ts",
+    "packages/core/src/index.ts",
+    "packages/core/src/extend.ts",
     "packages/marine/src/index.ts",
     "packages/marine/src/webgpu/index.ts",
     "packages/vehicle/src/index.ts",

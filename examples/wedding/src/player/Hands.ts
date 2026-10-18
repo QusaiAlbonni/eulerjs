@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import { TargetJoint } from 'eulerjs';
-import type { Body, Plugin, QueryHit, World } from 'eulerjs';
+import { TargetJoint } from '@eulerjs/core';
+import type { Body, Plugin, QueryHit, World } from '@eulerjs/core';
 import type { FirstPersonPlayer } from './FirstPersonPlayer.js';
 
 /** How far the player can reach, in metres. */

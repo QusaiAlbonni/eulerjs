@@ -7,8 +7,8 @@ const sourceOf = (packageDirectory: string, entry = 'index') =>
 export default defineConfig({
   resolve: {
     alias: [
-      { find: /^eulerjs$/, replacement: sourceOf('eulerjs') },
-      { find: /^eulerjs\/extend$/, replacement: sourceOf('eulerjs', 'extend') },
+      { find: /^@eulerjs\/core$/, replacement: sourceOf('core') },
+      { find: /^@eulerjs\/core\/extend$/, replacement: sourceOf('core', 'extend') },
       { find: /^@eulerjs\/marine$/, replacement: sourceOf('marine') },
       { find: /^@eulerjs\/bvh$/, replacement: sourceOf('bvh') },
       { find: /^@eulerjs\/vehicle$/, replacement: sourceOf('vehicle') },
@@ -21,7 +21,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts'],
-      exclude: ['packages/*/src/index.ts', 'packages/eulerjs/src/extend.ts'],
+      exclude: ['packages/*/src/index.ts', 'packages/core/src/extend.ts'],
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
         lines: 90,

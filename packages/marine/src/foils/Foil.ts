@@ -1,5 +1,5 @@
 import { Quaternion, Vector3 } from 'three';
-import type { Behavior, Body, World } from 'eulerjs';
+import type { Behavior, Body, World } from '@eulerjs/core';
 import type { FluidMedium } from '../media.js';
 import type { Polar } from './polars.js';
 

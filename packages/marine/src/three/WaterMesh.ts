@@ -1,6 +1,6 @@
 import { BatchedMesh, MathUtils, MeshPhysicalMaterial, PlaneGeometry, RepeatWrapping, Vector3 } from 'three';
 import type { IUniform, MeshPhysicalMaterialParameters, Object3D, Texture, WebGLProgramParametersWithUniforms } from 'three';
-import type { World } from 'eulerjs';
+import type { World } from '@eulerjs/core';
 import { Ocean } from '../media.js';
 import { SumOfSines } from '../waves/SumOfSines.js';
 import { createSumOfSinesUniforms, sumOfSinesShaderChunk, updateSumOfSinesTime } from '../waves/sumOfSinesShader.js';

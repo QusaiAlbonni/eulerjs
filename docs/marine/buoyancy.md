@@ -5,7 +5,7 @@ floating body, and every fixed step it pushes the body up by the weight of the w
 displaces, damps it against the water's motion, and drags on it in the water.
 
 ```ts
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Buoyancy, Ocean } from '@eulerjs/marine';
 
 const world = new World();
@@ -49,7 +49,7 @@ and use them for both its mass properties and its buoyancy:
 
 ```ts
 import { BoxGeometry } from 'three';
-import { Body } from 'eulerjs';
+import { Body } from '@eulerjs/core';
 import { Buoyancy, Voxels } from '@eulerjs/marine';
 
 const voxels = Voxels.fromGeometry(new BoxGeometry(2, 1, 3), { cellSize: 0.5 });

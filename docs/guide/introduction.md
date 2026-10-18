@@ -7,7 +7,7 @@ is always where the bodies are.
 
 ```ts
 import * as THREE from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 
 const world = new World(); // gravity (0, -9.81, 0), 60 fixed steps per second
 
@@ -78,7 +78,7 @@ built this way, on the same public API you can use yourself. See [Extending eule
 
 | Package | What it provides |
 | --- | --- |
-| `eulerjs` | `World`, `Body`, `MassProperties`, `Voxels`, every collider and joint above, the `JavaScriptBackend`, and the `Plugin`, `Behavior` and `PhysicsBackend` interfaces. `eulerjs/extend` is the entry point for plugins that add collider shapes. |
+| `@eulerjs/core` | `World`, `Body`, `MassProperties`, `Voxels`, every collider and joint above, the `JavaScriptBackend`, and the `Plugin`, `Behavior` and `PhysicsBackend` interfaces. `@eulerjs/core/extend` is the entry point for plugins that add collider shapes. |
 | `@eulerjs/marine` | Water and air: `SumOfSines` and `SpectralWaves` seas, `Ocean`, `Wind`, `Buoyancy`, `Foil` with sail and foil polars, and `WaterMesh` for drawing the sea; `SpectralWater` for three's `WebGPURenderer` in `@eulerjs/marine/webgpu`. See [Marine](/marine/). |
 | `@eulerjs/bvh` | `MeshCollider`: any triangle mesh as a static or kinematic collider, built on three-mesh-bvh. See [BVH](/bvh). |
 | `@eulerjs/vehicle` | `RaycastVehicle`: wheels on springs under a chassis, with tyres that grip up to a limit, on any ground. See [Vehicle](/vehicle). |
@@ -90,10 +90,10 @@ still re-exports it so older imports keep working.
 
 | Package | Needs |
 | --- | --- |
-| `eulerjs` | `three` 0.166 or later |
-| `@eulerjs/marine` | `eulerjs` 0.1, `three` 0.166 or later (0.186 for `@eulerjs/marine/webgpu`) |
-| `@eulerjs/vehicle` | `eulerjs` 0.1, `three` 0.166 or later |
-| `@eulerjs/bvh` | `eulerjs` 0.1, `three` 0.166 or later, `three-mesh-bvh` 0.9 or later |
+| `@eulerjs/core` | `three` 0.166 or later |
+| `@eulerjs/marine` | `@eulerjs/core` 0.1, `three` 0.166 or later (0.186 for `@eulerjs/marine/webgpu`) |
+| `@eulerjs/vehicle` | `@eulerjs/core` 0.1, `three` 0.166 or later |
+| `@eulerjs/bvh` | `@eulerjs/core` 0.1, `three` 0.166 or later, `three-mesh-bvh` 0.9 or later |
 
 All packages are ES modules, with TypeScript declarations included.
 

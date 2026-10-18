@@ -16,8 +16,8 @@ import {
   Vector3,
 } from 'three';
 import type { BufferGeometry, Material, Scene } from 'three';
-import { Body, PlaneCollider } from 'eulerjs';
-import type { ObjectBodyOptions, World } from 'eulerjs';
+import { Body, PlaneCollider } from '@eulerjs/core';
+import type { ObjectBodyOptions, World } from '@eulerjs/core';
 
 /**
  * A grid of city blocks with streets between them, all on flat ground: towers, a plaza with crates

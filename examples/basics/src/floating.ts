@@ -1,7 +1,7 @@
 import { ACESFilmicToneMapping, BoxGeometry, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardNodeMaterial, PerspectiveCamera, PMREMGenerator, Scene, Timer, Vector3, WebGPURenderer } from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SpectralWaves } from '@eulerjs/marine';
 import { seaFog, SpectralWater } from '@eulerjs/marine/webgpu';
 

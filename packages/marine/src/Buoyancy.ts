@@ -1,6 +1,6 @@
 import { MathUtils, Quaternion, Vector3 } from 'three';
-import { geometryOfObject, Voxels } from 'eulerjs';
-import type { Behavior, Body, World } from 'eulerjs';
+import { geometryOfObject, Voxels } from '@eulerjs/core';
+import type { Behavior, Body, World } from '@eulerjs/core';
 import type { Ocean } from './media.js';
 import type { WaveSurface } from './waves/WaveSurface.js';
 import { SurfaceGrid } from './waves/SurfaceGrid.js';

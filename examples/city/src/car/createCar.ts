@@ -1,6 +1,6 @@
 import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, SpotLight } from 'three';
 import type { Object3D, Quaternion, Scene, Vector3 } from 'three';
-import type { Body, World } from 'eulerjs';
+import type { Body, World } from '@eulerjs/core';
 import { CarControls } from './CarControls.js';
 import { CAR_LAYOUT } from './carLayout.js';
 import { createCarPhysics } from './createCarPhysics.js';

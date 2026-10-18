@@ -6,7 +6,7 @@ give every instance its own body, drawn as that instance.
 
 ```ts
 import * as THREE from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 
 const chairs = new THREE.InstancedMesh(chairGeometry, chairMaterial, 200);
 for (let index = 0; index < 200; index++) chairs.setMatrixAt(index, placements[index]);
@@ -33,7 +33,7 @@ or need a single object (`position`, `quaternion`, `velocity`, `angularVelocity`
 a function making the colliders for the instance at `index`:
 
 ```ts
-import { SphereCollider } from 'eulerjs';
+import { SphereCollider } from '@eulerjs/core';
 
 const balls = world.addInstances(ballMesh, {
   density: 300,
@@ -62,7 +62,7 @@ instances cost one mass integration, not a thousand.
 like, as `object` binds one to an `Object3D`:
 
 ```ts
-import { Body, BoxCollider } from 'eulerjs';
+import { Body, BoxCollider } from '@eulerjs/core';
 
 const crateBody = world.addBody(
   new Body({ instance: { mesh: crates, index: 7 }, colliders: [new BoxCollider({ size: crateSize })], mass: 12 }),

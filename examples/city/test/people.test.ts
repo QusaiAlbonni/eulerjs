@@ -1,6 +1,6 @@
 import { Quaternion, Scene, Vector3 } from 'three';
-import { Body, PlaneCollider, World } from 'eulerjs';
-import type { CapsuleCollider } from 'eulerjs';
+import { Body, PlaneCollider, World } from '@eulerjs/core';
+import type { CapsuleCollider } from '@eulerjs/core';
 import { describe, expect, it } from 'vitest';
 import { createCarPhysics } from '../src/car/createCarPhysics.js';
 import { BLOCK_PITCH, createCity } from '../src/city/createCity.js';

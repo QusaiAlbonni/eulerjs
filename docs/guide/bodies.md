@@ -59,7 +59,7 @@ for an object that already has one in the world.
 `world.addBody(body)` adds it:
 
 ```ts
-import { Body, MassProperties, SphereCollider } from 'eulerjs';
+import { Body, MassProperties, SphereCollider } from '@eulerjs/core';
 
 const ball = world.addBody(
   new Body({
@@ -140,7 +140,7 @@ outside, as three.js geometry is; otherwise an `InvalidMeshError` explains what 
 many boundary edges, or that the faces point inward).
 
 ```ts
-import { MassProperties } from 'eulerjs';
+import { MassProperties } from '@eulerjs/core';
 
 const hull = MassProperties.fromMesh(hullGeometry, { mass: 4500 });
 const ballast = MassProperties.box(new THREE.Vector3(0.4, 0.3, 2), 1200, new THREE.Vector3(0, -0.8, 0));
@@ -294,7 +294,7 @@ spring, a thruster, buoyancy, a sail. Anything with a `fixedUpdate(body, timeste
 is one.
 
 ```ts
-import type { Behavior, Body } from 'eulerjs';
+import type { Behavior, Body } from '@eulerjs/core';
 
 /** Holds a body up like a hovering drone, pushing harder the lower it is. */
 class Hover implements Behavior {

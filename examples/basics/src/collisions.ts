@@ -1,5 +1,5 @@
 import { BoxGeometry, DodecahedronGeometry, Mesh, MeshStandardMaterial, PlaneGeometry, Raycaster, SphereGeometry, Vector2, Vector3 } from 'three';
-import { PlaneCollider, SphereCollider, World } from 'eulerjs';
+import { PlaneCollider, SphereCollider, World } from '@eulerjs/core';
 import { createStage, run } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(7, 5, 9), lookAt: new Vector3(0, 1, 0) });

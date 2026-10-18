@@ -1,6 +1,6 @@
 import { ConeGeometry, Group, IcosahedronGeometry, Mesh, PlaneGeometry, PointLight, SphereGeometry, TorusGeometry, Vector3 } from 'three';
-import { BoxCollider, CylinderCollider, PlaneCollider } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { BoxCollider, CylinderCollider, PlaneCollider } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { ARCH, DANCE_FLOOR, FOUNTAIN, HEDGES, LAMP_POSTS, MARQUEE, STAGE, TREES } from './layout.js';
 import { materials, pastel } from './materials.js';
 import { addFixture, boxAt, cylinderAt, merged, shaded } from './props.js';

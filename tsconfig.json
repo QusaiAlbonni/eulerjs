@@ -4,8 +4,8 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "eulerjs": ["./packages/eulerjs/src/index.ts"],
-      "eulerjs/extend": ["./packages/eulerjs/src/extend.ts"],
+      "@eulerjs/core": ["./packages/core/src/index.ts"],
+      "@eulerjs/core/extend": ["./packages/core/src/extend.ts"],
       "@eulerjs/bvh": ["./packages/bvh/src/index.ts"],
       "@eulerjs/vehicle": ["./packages/vehicle/src/index.ts"],
       "@eulerjs/marine": ["./packages/marine/src/index.ts"],

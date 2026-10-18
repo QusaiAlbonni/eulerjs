@@ -1,8 +1,8 @@
 import { BoxGeometry, CylinderGeometry, InstancedMesh, Matrix4, Mesh, Vector3 } from 'three';
 import type { BufferGeometry, Material, Object3D, Quaternion, Scene } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Body } from 'eulerjs';
-import type { Collider, World } from 'eulerjs';
+import { Body } from '@eulerjs/core';
+import type { Collider, World } from '@eulerjs/core';
 
 /** What every part of the venue is added to. */
 export interface Venue {

@@ -39,7 +39,7 @@ Anything else is a collider instance, passed as `collider` (one or an array) to
 `world.addBody(object, ...)`, or as `colliders` to `new Body(...)`:
 
 ```ts
-import { Body, BoxCollider, PlaneCollider, SphereCollider } from 'eulerjs';
+import { Body, BoxCollider, PlaneCollider, SphereCollider } from '@eulerjs/core';
 
 world.addBody(floor, { type: 'static', collider: new PlaneCollider({ friction: 0.8 }) });
 world.addBody(ball, { collider: new SphereCollider({ radius: 0.35, restitution: 0.6 }) });
@@ -149,7 +149,7 @@ Coplanar triangles are merged into one face, so a box-shaped hull has six square
 what gives whole contact patches.
 
 ```ts
-import { ConvexCollider } from 'eulerjs';
+import { ConvexCollider } from '@eulerjs/core';
 
 const wedge = new ConvexCollider({
   points: [
@@ -189,7 +189,7 @@ Terrain from a grid of heights, centred on the collider's origin, each cell spli
 triangles:
 
 ```ts
-import { Body, HeightfieldCollider } from 'eulerjs';
+import { Body, HeightfieldCollider } from '@eulerjs/core';
 
 const cells = 64;
 const heights = Array.from({ length: cells + 1 }, (_unused, row) =>

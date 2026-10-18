@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Scene } from 'three';
-import type { Body, World } from 'eulerjs';
+import type { Body, World } from '@eulerjs/core';
 import { addBalloons } from './balloons.js';
 import type { Balloons } from './balloons.js';
 import { addDecor } from './decor.js';

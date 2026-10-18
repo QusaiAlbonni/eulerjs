@@ -1,6 +1,6 @@
 import { MathUtils, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Body, MassProperties, World } from 'eulerjs';
+import { Body, MassProperties, World } from '@eulerjs/core';
 import type { FluidMedium, Polar } from '@eulerjs/marine';
 import { camberedSailPolar, Foil, sailPolar, symmetricFoilPolar, TablePolar, Wind } from '@eulerjs/marine';
 import { SAIL_DRAG_BY_DEGREE, SAIL_LIFT_BY_DEGREE } from '../src/foils/sailTables.js';

@@ -20,7 +20,8 @@ function apiSidebar(): DefaultTheme.SidebarItem[] {
   if (!existsSync(path)) return [{ text: 'Run npm run docs:api to generate', link: '/api/' }];
   const items = JSON.parse(readFileSync(path, 'utf8')) as DefaultTheme.SidebarItem[];
   // the engine first, then its plugins
-  return items.sort((first, second) => Number(first.text?.startsWith('@')) - Number(second.text?.startsWith('@')));
+  const rank = (item: DefaultTheme.SidebarItem) => (item.text?.startsWith('@eulerjs/core') ? 0 : 1);
+  return items.sort((first, second) => rank(first) - rank(second));
 }
 
 const guide: DefaultTheme.SidebarItem[] = [
@@ -93,8 +94,8 @@ export default defineConfig({
     // the landing page's live sea runs against the engine's sources, as the examples do
     resolve: {
       alias: [
-        { find: /^eulerjs$/, replacement: sourceOf('eulerjs') },
-        { find: /^eulerjs\/extend$/, replacement: sourceOf('eulerjs', 'extend') },
+        { find: /^@eulerjs\/core$/, replacement: sourceOf('core') },
+        { find: /^@eulerjs\/core\/extend$/, replacement: sourceOf('core', 'extend') },
         { find: /^@eulerjs\/marine$/, replacement: sourceOf('marine') },
         { find: /^@eulerjs\/marine\/webgpu$/, replacement: sourceOf('marine', 'webgpu/index') },
       ],

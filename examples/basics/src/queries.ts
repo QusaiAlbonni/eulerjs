@@ -1,6 +1,6 @@
 import { ArrowHelper, BoxGeometry, CapsuleGeometry, CylinderGeometry, Mesh, MeshStandardMaterial, PlaneGeometry, Raycaster, SphereGeometry, Vector2, Vector3 } from 'three';
-import type { Body} from 'eulerjs';
-import { CapsuleCollider, CylinderCollider, PlaneCollider, SphereCollider, World } from 'eulerjs';
+import type { Body} from '@eulerjs/core';
+import { CapsuleCollider, CylinderCollider, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
 import { createStage, run, showStatus } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 7, 13), lookAt: new Vector3(0, 1, 0) });

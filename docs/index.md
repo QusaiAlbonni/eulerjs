@@ -119,7 +119,7 @@ has all of them, and what cannon-es does better.
 
 ```ts
 import { BoxGeometry, Mesh, MeshStandardMaterial } from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 
 const world = new World();
 

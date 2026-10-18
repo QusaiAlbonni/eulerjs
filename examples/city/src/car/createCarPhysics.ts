@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { Object3D, Quaternion } from 'three';
-import { Body, BoxCollider, MassProperties } from 'eulerjs';
-import type { World } from 'eulerjs';
+import { Body, BoxCollider, MassProperties } from '@eulerjs/core';
+import type { World } from '@eulerjs/core';
 import { CAR_LAYOUT } from './carLayout.js';
 import type { CarLayout } from './carLayout.js';
 import { Vehicle } from './Vehicle.js';

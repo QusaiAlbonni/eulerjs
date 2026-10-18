@@ -1,6 +1,6 @@
 import { BoxGeometry, Vector3 } from 'three';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Body, World } from 'eulerjs';
+import { Body, World } from '@eulerjs/core';
 import { Buoyancy, Ocean, serveSpectralFields, SpectralWaves, Voxels } from '@eulerjs/marine';
 import type { SpectralPort } from '@eulerjs/marine';
 

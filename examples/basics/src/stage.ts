@@ -1,7 +1,7 @@
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, PMREMGenerator, Scene, Timer, Vector3, WebGLRenderer } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import type { World } from 'eulerjs';
+import type { World } from '@eulerjs/core';
 
 /** The three.js boilerplate every example shares, so the example files only show physics. */
 export interface Stage {

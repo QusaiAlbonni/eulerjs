@@ -1,6 +1,6 @@
 import { Object3D, Quaternion, Vector3 } from 'three';
-import { Body, CapsuleCollider, SixDofJoint } from 'eulerjs';
-import type { Behavior, World } from 'eulerjs';
+import { Body, CapsuleCollider, SixDofJoint } from '@eulerjs/core';
+import type { Behavior, World } from '@eulerjs/core';
 
 /** A guest of 1.75 m and 75 kg, as a capsule. */
 const RADIUS = 0.3;

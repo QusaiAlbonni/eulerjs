@@ -1,5 +1,5 @@
 import { BoxGeometry, GridHelper, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { createStage, run } from './stage.js';
 
 const stage = createStage();

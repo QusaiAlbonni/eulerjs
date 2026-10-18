@@ -3,7 +3,7 @@
 Everything that isn't core physics is built on two small interfaces: a **behaviour** acts on one
 body, a **plugin** acts on the whole world. Buoyancy, sails and ray-cast vehicles are behaviours;
 anything that works across many bodies (air drag, wind fields, a game's rules) is a plugin. A
-third entry point, `eulerjs/extend`, teaches the built-in backend new collider shapes.
+third entry point, `@eulerjs/core/extend`, teaches the built-in backend new collider shapes.
 
 ## The step, hook by hook
 
@@ -40,7 +40,7 @@ A spring from a fixed point to a point on a body, with damping, as the `springs`
 
 ```ts
 import { Vector3 } from 'three';
-import type { Behavior, Body } from 'eulerjs';
+import type { Behavior, Body } from '@eulerjs/core';
 
 class Spring implements Behavior {
   private readonly worldAttachment = new Vector3();
@@ -99,7 +99,7 @@ Air drag on every body, growing with the square of its speed:
 
 ```ts
 import { Vector3 } from 'three';
-import type { Plugin } from 'eulerjs';
+import type { Plugin } from '@eulerjs/core';
 
 const dragForce = new Vector3();
 const airDrag: Plugin = {
@@ -130,13 +130,13 @@ Which hook to use:
 
 A plugin can also be a class, holding its own state, with its own methods for the game to call.
 
-## New collider shapes: `eulerjs/extend`
+## New collider shapes: `@eulerjs/core/extend`
 
 The built-in backend knows the core's shapes. A plugin that adds a shape, as `@eulerjs/bvh`
-adds triangle meshes, does it through `eulerjs/extend`:
+adds triangle meshes, does it through `@eulerjs/core/extend`:
 
 ```ts
-import { registerCollisionTest, registerRayTest, registerTriangleShape } from 'eulerjs/extend';
+import { registerCollisionTest, registerRayTest, registerTriangleShape } from '@eulerjs/core/extend';
 ```
 
 ### The collider class
@@ -162,10 +162,10 @@ tests and sensors.
 
 ```ts
 import { Box3, Vector3 } from 'three';
-import { Collider } from 'eulerjs';
-import type { ColliderOptions, ColliderPose } from 'eulerjs';
-import { ALL_EDGES, registerTriangleShape } from 'eulerjs/extend';
-import type { TriangleVisitor } from 'eulerjs/extend';
+import { Collider } from '@eulerjs/core';
+import type { ColliderOptions, ColliderPose } from '@eulerjs/core';
+import { ALL_EDGES, registerTriangleShape } from '@eulerjs/core/extend';
+import type { TriangleVisitor } from '@eulerjs/core/extend';
 
 /** A single two-sided triangle, as a static collider: a ramp, a sail-shaped wall. */
 class TriangleCollider extends Collider {
@@ -246,7 +246,7 @@ margin?)` runs whatever test is registered for a pair, and `triangleTestFor(coll
 the test of a convex collider against a single triangle, for shapes that are partly made of them.
 
 ::: warning The JavaScript backend only
-`eulerjs/extend` extends the built-in `JavaScriptBackend`. Another backend has its own way of
+`@eulerjs/core/extend` extends the built-in `JavaScriptBackend`. Another backend has its own way of
 adding shapes, if it has one.
 :::
 

@@ -1,6 +1,6 @@
 import { BoxGeometry, Mesh, Quaternion, Vector3 } from 'three';
-import { Body, BoxCollider, DistanceJoint, PlaneCollider, World } from 'eulerjs';
-import type { ObjectBodyOptions } from 'eulerjs';
+import { Body, BoxCollider, DistanceJoint, PlaneCollider, World } from '@eulerjs/core';
+import type { ObjectBodyOptions } from '@eulerjs/core';
 import { describe, expect, it } from 'vitest';
 import { Buoyancy, Ocean, SpectralWaves, SumOfSines } from '@eulerjs/marine';
 import type { WaveSurface } from '@eulerjs/marine';

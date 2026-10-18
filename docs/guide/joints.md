@@ -10,7 +10,7 @@ each other. eulerjs has two kinds underneath:
 Both solvers simulate every joint.
 
 ```ts
-import { ConeTwistJoint, FixedJoint, HingeJoint, SliderJoint, TargetJoint } from 'eulerjs';
+import { ConeTwistJoint, FixedJoint, HingeJoint, SliderJoint, TargetJoint } from '@eulerjs/core';
 
 world.addJoint(new HingeJoint({ bodyA: frame, bodyB: door, anchor: hingePoint, axis: up, limits: { lower: 0, upper: 1.6 } }));
 world.addJoint(new HingeJoint({ bodyA: car, bodyB: wheel, anchor: hub, axis: axle, motor: { targetVelocity: 20, maxForce: 300 } }));
@@ -130,7 +130,7 @@ leave out `twistLimits` too and it is a plain ball joint. It also takes an
 drive.
 
 ```ts
-import { SixDofJoint } from 'eulerjs';
+import { SixDofJoint } from '@eulerjs/core';
 
 // a hook on a crane's trolley: driven along the rail (x), swinging a little either way, never twisting
 world.addJoint(
@@ -281,7 +281,7 @@ A target joint holding a body up against gravity sags by g / (2π · frequency)�
 in the world:
 
 ```ts
-import { DistanceJoint } from 'eulerjs';
+import { DistanceJoint } from '@eulerjs/core';
 
 // a pendulum: a bob 3 m from a pivot in the world
 world.addJoint(new DistanceJoint({ bodyA: bob, anchorB: pivot }));

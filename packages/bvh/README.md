@@ -1,6 +1,6 @@
 # @eulerjs/bvh
 
-Triangle mesh colliders for [eulerjs](https://www.npmjs.com/package/eulerjs): a level, a building or a rock face as a
+Triangle mesh colliders for [eulerjs](https://www.npmjs.com/package/@eulerjs/core): a level, a building or a rock face as a
 collider, found quickly with a bounding volume tree from
 [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh).
 
@@ -9,7 +9,7 @@ npm install @eulerjs/bvh eulerjs three three-mesh-bvh
 ```
 
 ```ts
-import { Body } from 'eulerjs';
+import { Body } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
 
 world.addBody(new Body({ type: 'static', colliders: [new MeshCollider({ geometry: level.geometry, friction: 0.7 })] }));

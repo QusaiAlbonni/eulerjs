@@ -21,8 +21,8 @@ export type { SumOfSinesUniforms } from './waves/sumOfSinesShader.js';
 export { Ocean, Wind } from './media.js';
 export type { FluidMedium, OceanOptions, WindOptions } from './media.js';
 // Voxels moved to the core package; re-exported so existing imports keep working.
-export { Voxels } from 'eulerjs';
-export type { VoxelizeOptions } from 'eulerjs';
+export { Voxels } from '@eulerjs/core';
+export type { VoxelizeOptions } from '@eulerjs/core';
 export { Buoyancy } from './Buoyancy.js';
 export type { BuoyancyOptions } from './Buoyancy.js';
 export { Foil } from './foils/Foil.js';

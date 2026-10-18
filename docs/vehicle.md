@@ -13,7 +13,7 @@ It needs three 0.166 or later.
 
 ```ts
 import { Vector3 } from 'three';
-import { Body, BoxCollider, MassProperties } from 'eulerjs';
+import { Body, BoxCollider, MassProperties } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
 
 const chassisSize = new Vector3(1.75, 0.7, 4.1);
@@ -187,7 +187,7 @@ front-wheel drive and steering. On top of `RaycastVehicle` it adds the driving i
 behaviour of its own that holds the `RaycastVehicle` and steps it after setting the wheels:
 
 ```ts
-import type { Behavior, Body, World } from 'eulerjs';
+import type { Behavior, Body, World } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
 
 class Car implements Behavior {

@@ -62,7 +62,7 @@ along `direction` until it first touches a collider, and returns where (a `Query
 check that something fits.
 
 ```ts
-import { CapsuleCollider } from 'eulerjs';
+import { CapsuleCollider } from '@eulerjs/core';
 
 const characterShape = new CapsuleCollider({ radius: 0.35, length: 0.9 });
 const ahead = world.castShape(characterShape, character.position, walkDirection, { maxDistance: 0.3, exclude: character });
@@ -133,7 +133,7 @@ A collider with `sensor: true` notices what overlaps it without pushing it, and 
 its body:
 
 ```ts
-import { BoxCollider } from 'eulerjs';
+import { BoxCollider } from '@eulerjs/core';
 
 const zone = new BoxCollider({ size: new THREE.Vector3(4, 2, 3), sensor: true });
 world.addBody(zoneMesh, { type: 'static', collider: zone });

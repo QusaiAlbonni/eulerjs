@@ -1,9 +1,9 @@
 import { BoxGeometry, Vector3 } from 'three';
 import { it } from 'vitest';
-import { Body, World } from 'eulerjs';
+import { Body, World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SpectralWaves, SumOfSines, Voxels } from '@eulerjs/marine';
 import type { WaveSurface } from '@eulerjs/marine';
-import { benchmarkBackend, timeStep } from '../../eulerjs/bench/scenes.js';
+import { benchmarkBackend, timeStep } from '../../core/bench/scenes.js';
 
 // Not pass/fail: prints what the two seas cost the physics. Run with `npm run bench`.
 

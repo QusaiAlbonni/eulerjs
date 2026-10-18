@@ -1,8 +1,8 @@
 import { PlaneGeometry, Vector3 } from 'three';
 import { it } from 'vitest';
-import { Body, MassProperties, SphereCollider, World } from 'eulerjs';
+import { Body, MassProperties, SphereCollider, World } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
-import { benchmarkBackend, runSeconds, timeStep } from '../../eulerjs/bench/scenes.js';
+import { benchmarkBackend, runSeconds, timeStep } from '../../core/bench/scenes.js';
 
 // Not pass/fail: prints what triangle meshes cost. Run with `npm run bench`.
 

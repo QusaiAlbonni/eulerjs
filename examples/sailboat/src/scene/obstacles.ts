@@ -1,7 +1,7 @@
 import { BoxGeometry, IcosahedronGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { Scene } from 'three';
-import { ConvexCollider } from 'eulerjs';
-import type { Body, World } from 'eulerjs';
+import { ConvexCollider } from '@eulerjs/core';
+import type { Body, World } from '@eulerjs/core';
 import { Buoyancy } from '@eulerjs/marine';
 import type { Ocean, WaveSurface } from '@eulerjs/marine';
 

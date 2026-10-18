@@ -1,6 +1,6 @@
 import { BufferAttribute, BufferGeometry, Line, LineBasicMaterial, SphereGeometry, Vector3 } from 'three';
-import { BoxCollider, DistanceJoint, SphereCollider } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { BoxCollider, DistanceJoint, SphereCollider } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { materials, pastel } from './materials.js';
 import { addProp, shaded } from './props.js';
 import type { Venue } from './props.js';

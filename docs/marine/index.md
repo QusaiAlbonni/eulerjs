@@ -32,7 +32,7 @@ A spectral sea drawn to the horizon, and a crate floating on it:
 
 ```ts
 import { BoxGeometry, Mesh, MeshStandardNodeMaterial, PerspectiveCamera, Scene, Timer, WebGPURenderer } from 'three/webgpu';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Buoyancy, Ocean } from '@eulerjs/marine';
 import { SpectralWater } from '@eulerjs/marine/webgpu';
 
@@ -156,7 +156,7 @@ const raft = world.addBody(raftMesh, { density: 500, shape: 'voxels', cellSize: 
 raft.addBehavior(new Buoyancy({ ocean }));
 ```
 
-`Voxels` lives in the core `eulerjs` package; `@eulerjs/marine` exports it too. See
+`Voxels` lives in the `@eulerjs/core` package; `@eulerjs/marine` exports it too. See
 [Buoyancy](./buoyancy) for the forces, the options and what floats stably.
 
 ## Foils

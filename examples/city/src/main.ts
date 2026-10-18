@@ -1,7 +1,7 @@
 import { Timer } from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
-import { JavaScriptBackend, World } from 'eulerjs';
-import type { JavaScriptBackendOptions } from 'eulerjs';
+import { JavaScriptBackend, World } from '@eulerjs/core';
+import type { JavaScriptBackendOptions } from '@eulerjs/core';
 import { createCar } from './car/createCar.js';
 import { BLOCK_PITCH, createCity } from './city/createCity.js';
 import { Crowd } from './people/Crowd.js';

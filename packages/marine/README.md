@@ -1,6 +1,6 @@
 # @eulerjs/marine
 
-Waves, buoyancy and foils (sails, keels, rudders) for [eulerjs](https://www.npmjs.com/package/eulerjs), plus water that
+Waves, buoyancy and foils (sails, keels, rudders) for [eulerjs](https://www.npmjs.com/package/@eulerjs/core), plus water that
 draws the same waves the physics floats on, to the horizon. Documentation:
 https://qusaialbonni.github.io/eulerjs/marine/
 

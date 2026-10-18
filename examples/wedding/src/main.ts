@@ -1,6 +1,6 @@
 import { Timer, Vector3 } from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { FirstPersonPlayer } from './player/FirstPersonPlayer.js';
 import { Hands } from './player/Hands.js';
 import { PlayerControls } from './player/PlayerControls.js';

@@ -228,7 +228,7 @@ and `boat/sailboatLayout.ts`:
 
 ```ts
 import { Vector3 } from 'three';
-import { Body, ConvexCollider, MassProperties, Voxels } from 'eulerjs';
+import { Body, ConvexCollider, MassProperties, Voxels } from '@eulerjs/core';
 import { Buoyancy, camberedSailPolar, Foil, symmetricFoilPolar } from '@eulerjs/marine';
 
 // the hull mesh is open at the deck, so its mass comes from its voxels, plus the lead in the keel

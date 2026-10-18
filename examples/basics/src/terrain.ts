@@ -1,6 +1,6 @@
 import { ConeGeometry, CylinderGeometry, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, TorusKnotGeometry, Vector3 } from 'three';
-import { Body, ConeCollider, CylinderCollider, HeightfieldCollider, SphereCollider, World } from 'eulerjs';
-import type { Collider } from 'eulerjs';
+import { Body, ConeCollider, CylinderCollider, HeightfieldCollider, SphereCollider, World } from '@eulerjs/core';
+import type { Collider } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
 import { createStage, run } from './stage.js';
 

@@ -1,10 +1,10 @@
 import { Box3, DoubleSide, Matrix3, Ray, Vector3 } from 'three';
 import type { BufferGeometry } from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
-import { Collider } from 'eulerjs';
-import type { ColliderOptions, ColliderPose } from 'eulerjs';
-import { registerRayTest, registerTriangleShape } from 'eulerjs/extend';
-import type { SweepHit, TriangleVisitor } from 'eulerjs/extend';
+import { Collider } from '@eulerjs/core';
+import type { ColliderOptions, ColliderPose } from '@eulerjs/core';
+import { registerRayTest, registerTriangleShape } from '@eulerjs/core/extend';
+import type { SweepHit, TriangleVisitor } from '@eulerjs/core/extend';
 
 export interface MeshColliderOptions extends ColliderOptions {
   /** The triangles, in the collider's frame. Copied, so later changes to it don't reach the collider. */

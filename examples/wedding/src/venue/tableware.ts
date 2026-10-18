@@ -1,6 +1,6 @@
 import { BoxGeometry, Group, IcosahedronGeometry, Quaternion, SphereGeometry, Vector3 } from 'three';
-import { BoxCollider, CylinderCollider } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { BoxCollider, CylinderCollider } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { materials, pastel } from './materials.js';
 import { addInstancedProps, addProp, cylinderAt, merged, mergedInGroups, shaded } from './props.js';
 import type { Venue } from './props.js';

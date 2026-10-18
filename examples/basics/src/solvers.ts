@@ -1,6 +1,6 @@
 import { BoxGeometry, GridHelper, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
-import { Body, DistanceJoint, JavaScriptBackend, PlaneCollider, SphereCollider, World } from 'eulerjs';
-import type { JavaScriptBackendOptions } from 'eulerjs';
+import { Body, DistanceJoint, JavaScriptBackend, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
+import type { JavaScriptBackendOptions } from '@eulerjs/core';
 import { createStage, run, showStatus } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 6, 22), lookAt: new Vector3(0, 3.5, 0) });

@@ -1,6 +1,6 @@
 import { BoxGeometry, Color, Mesh, MeshStandardMaterial, PlaneGeometry, SphereGeometry, Vector3 } from 'three';
-import { BoxCollider, PlaneCollider, SphereCollider, World } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { BoxCollider, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { createStage, run, showStatus } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 6, 12), lookAt: new Vector3(0, 1.5, 0) });

@@ -1,5 +1,5 @@
 import { BoxGeometry, Vector3 } from 'three';
-import { Body, World } from 'eulerjs';
+import { Body, World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SpectralWaves, SumOfSines, Voxels } from '@eulerjs/marine';
 import type { WaveSurface } from '@eulerjs/marine';
 

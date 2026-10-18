@@ -12,7 +12,7 @@ It needs three 0.166 or later and three-mesh-bvh 0.9 or later, which is a peer d
 install it yourself, and it is shared with anything else of yours that uses it.
 
 ```ts
-import { Body } from 'eulerjs';
+import { Body } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
 
 world.addBody(new Body({ type: 'static', colliders: [new MeshCollider({ geometry: level.geometry, friction: 0.7 })] }));
@@ -78,7 +78,7 @@ drops every fourth onto a torus knot that stands on the hills as a triangle mesh
 
 ```ts
 import { Mesh, MeshStandardMaterial, TorusKnotGeometry } from 'three';
-import { Body } from 'eulerjs';
+import { Body } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
 
 const knot = new TorusKnotGeometry(3, 0.8, 128, 16);

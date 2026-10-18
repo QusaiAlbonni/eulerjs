@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
 import { it } from 'vitest';
-import { Body, BoxCollider, HeightfieldCollider, MassProperties, World } from 'eulerjs';
+import { Body, BoxCollider, HeightfieldCollider, MassProperties, World } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
-import { benchmarkBackend, runSeconds, timeStep } from '../../eulerjs/bench/scenes.js';
+import { benchmarkBackend, runSeconds, timeStep } from '../../core/bench/scenes.js';
 
 // Not pass/fail: prints what ray-cast vehicles cost. Run with `npm run bench`.
 

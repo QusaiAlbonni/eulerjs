@@ -1,6 +1,6 @@
 import { BoxGeometry, Euler, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Body, World } from 'eulerjs';
+import { Body, World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SpectralWaves, SumOfSines, Voxels } from '@eulerjs/marine';
 import type { WaveSurface } from '@eulerjs/marine';
 

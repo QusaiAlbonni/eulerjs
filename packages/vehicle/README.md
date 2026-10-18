@@ -1,6 +1,6 @@
 # @eulerjs/vehicle
 
-Ray-cast vehicles for [eulerjs](https://www.npmjs.com/package/eulerjs): a chassis body carried by wheels, each a ray down
+Ray-cast vehicles for [eulerjs](https://www.npmjs.com/package/@eulerjs/core): a chassis body carried by wheels, each a ray down
 from its suspension mount to whatever ground is under it, flat or not, still or moving, with a
 spring and damper between them and a tyre that grips up to a limit.
 

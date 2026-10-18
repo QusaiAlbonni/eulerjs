@@ -1,5 +1,5 @@
 import { MathUtils, Quaternion, Vector3 } from 'three';
-import type { Body } from 'eulerjs';
+import type { Body } from '@eulerjs/core';
 import { CAR_LAYOUT } from './carLayout.js';
 import { rideHeight } from './createCarPhysics.js';
 import type { Vehicle } from './Vehicle.js';

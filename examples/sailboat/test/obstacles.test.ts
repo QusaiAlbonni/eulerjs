@@ -1,5 +1,5 @@
 import { Scene, Vector3 } from 'three';
-import type { Body, BoxCollider, ConvexCollider, World } from 'eulerjs';
+import type { Body, BoxCollider, ConvexCollider, World } from '@eulerjs/core';
 import { describe, expect, it } from 'vitest';
 import { createObstacles } from '../src/scene/obstacles.js';
 import { SailingScenario } from './sailboatScenario.js';

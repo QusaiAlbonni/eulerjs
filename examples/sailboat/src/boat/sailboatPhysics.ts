@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { BufferGeometry, Object3D, Quaternion } from 'three';
-import { Body, ConvexCollider, MassProperties, Voxels } from 'eulerjs';
-import type { World } from 'eulerjs';
+import { Body, ConvexCollider, MassProperties, Voxels } from '@eulerjs/core';
+import type { World } from '@eulerjs/core';
 import { Buoyancy, camberedSailPolar, Foil, symmetricFoilPolar } from '@eulerjs/marine';
 import type { Ocean, WaveSurface, Wind } from '@eulerjs/marine';
 import { SAILBOAT_LAYOUT } from './sailboatLayout.js';

@@ -1,5 +1,5 @@
 import { AxesHelper, BoxGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { createStage, run } from './stage.js';
 
 const stage = createStage({ cameraPosition: new Vector3(0, 3, 13), lookAt: new Vector3(0, 0, 0) });

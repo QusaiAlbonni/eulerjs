@@ -17,7 +17,7 @@ So the solver can be replaced (by a new algorithm, or a WebAssembly engine) with
 written against `World` and `Body`. A world's backend is chosen when it is made:
 
 ```ts
-import { JavaScriptBackend, World } from 'eulerjs';
+import { JavaScriptBackend, World } from '@eulerjs/core';
 
 const world = new World({ backend: new JavaScriptBackend() }); // the default
 console.log(world.backend.name); // 'javascript'
@@ -29,7 +29,7 @@ sweep and prune, works out their contacts with exact or GJK-based tests, and sol
 contacts with one of two solvers. Scene queries search a bounding volume tree of the colliders.
 
 Any other backend implements the `PhysicsBackend` interface. The repository's
-`packages/eulerjs/test/conformance` suite is what every backend must pass: it checks physics (fall,
+`packages/core/test/conformance` suite is what every backend must pass: it checks physics (fall,
 bounce, friction, pendulum period, stacking, sleeping) against closed-form answers, with
 tolerances any sound method meets.
 

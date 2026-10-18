@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
 import type { Scene } from 'three';
-import type { Body, Plugin, World } from 'eulerjs';
+import type { Body, Plugin, World } from '@eulerjs/core';
 import { Pedestrian } from './Pedestrian.js';
 import { advanceRoute, newPlacement, placeOnRoute, startingRoutes } from './routes.js';
 import type { Route, WalkerPlacement } from './routes.js';

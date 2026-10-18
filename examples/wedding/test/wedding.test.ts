@@ -1,6 +1,6 @@
 import { Scene, Vector3 } from 'three';
-import { World } from 'eulerjs';
-import type { Body } from 'eulerjs';
+import { World } from '@eulerjs/core';
+import type { Body } from '@eulerjs/core';
 import { describe, expect, it } from 'vitest';
 import { FirstPersonPlayer } from '../src/player/FirstPersonPlayer.js';
 import { Hands } from '../src/player/Hands.js';

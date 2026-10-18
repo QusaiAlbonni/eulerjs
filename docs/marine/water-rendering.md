@@ -310,7 +310,7 @@ in the vertex shader by exactly the waves the physics uses. Its material is a
 
 ```ts
 // drawn with three's WebGLRenderer
-import { World } from 'eulerjs';
+import { World } from '@eulerjs/core';
 import { Buoyancy, Ocean, SumOfSines, WaterMesh } from '@eulerjs/marine';
 
 const world = new World();

@@ -1,5 +1,5 @@
 import { MathUtils, Vector3 } from 'three';
-import type { Body } from 'eulerjs';
+import type { Body } from '@eulerjs/core';
 import type { Vehicle } from '../src/car/Vehicle.js';
 
 /** Within this distance of a waypoint, in metres, the car heads for the next one. */

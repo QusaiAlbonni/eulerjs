@@ -1,8 +1,8 @@
 import type { BufferGeometry} from 'three';
 import { BoxGeometry, DoubleSide, Mesh, MeshBasicMaterial, PlaneGeometry, Quaternion, Raycaster, SphereGeometry, TorusKnotGeometry, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { Body, BoxCollider, CapsuleCollider, CylinderCollider, JavaScriptBackend, MassProperties, SphereCollider, World } from 'eulerjs';
-import type { JavaScriptBackendOptions } from 'eulerjs';
+import { Body, BoxCollider, CapsuleCollider, CylinderCollider, JavaScriptBackend, MassProperties, SphereCollider, World } from '@eulerjs/core';
+import type { JavaScriptBackendOptions } from '@eulerjs/core';
 import { MeshCollider } from '@eulerjs/bvh';
 
 /** A flat square of ground, `size` across, cut into `cells` by `cells` squares of two triangles, facing up. */
