@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs city</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #a9c6de;
+        font-family: system-ui, sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      .speed {
+        position: absolute;
+        right: 24px;
+        bottom: 20px;
+        color: #fff;
+        font-size: 36px;
+        font-weight: 600;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+        font-variant-numeric: tabular-nums;
+      }
+      .help {
+        position: absolute;
+        top: 56px;
+        left: 8px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.5);
+        color: #eee;
+        font-size: 13px;
+        line-height: 1.6;
+        pointer-events: none;
+      }
+      .help kbd {
+        display: inline-block;
+        min-width: 1.4em;
+        padding: 0 4px;
+        border: 1px solid #888;
+        border-radius: 3px;
+        text-align: center;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="help">
+      <kbd>W</kbd> accelerate &nbsp; <kbd>S</kbd> brake, reverse<br />
+      <kbd>A</kbd> <kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> handbrake<br />
+      <kbd>R</kbd> back on the wheels &nbsp; <kbd>V</kbd> camera<br />
+      solver: <strong id="solver"></strong>
+    </div>
+    <div class="speed" id="speed">0 km/h</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

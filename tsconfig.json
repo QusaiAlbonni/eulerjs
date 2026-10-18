@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "eulerjs": ["./packages/eulerjs/src/index.ts"],
+      "eulerjs/extend": ["./packages/eulerjs/src/extend.ts"],
+      "@eulerjs/bvh": ["./packages/bvh/src/index.ts"],
+      "@eulerjs/vehicle": ["./packages/vehicle/src/index.ts"],
+      "@eulerjs/marine": ["./packages/marine/src/index.ts"],
+      "@eulerjs/marine/webgpu": ["./packages/marine/src/webgpu/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "packages/*/test", "packages/*/bench", "examples/*/src", "examples/*/test", "vitest.config.ts", "vitest.bench.config.ts", "examples/*/vite.config.ts", "scripts/logo"]
+}

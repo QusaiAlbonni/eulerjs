@@ -1,0 +1,47 @@
+{
+  "name": "@eulerjs/vehicle",
+  "version": "0.1.0",
+  "description": "Ray-cast vehicles for eulerjs: wheels on springs, tyres with grip",
+  "type": "module",
+  "license": "MIT",
+  "author": "Qusay Albonni",
+  "homepage": "https://qusaialbonni.github.io/eulerjs/vehicle",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QusaiAlbonni/eulerjs.git",
+    "directory": "packages/vehicle"
+  },
+  "bugs": {
+    "url": "https://github.com/QusaiAlbonni/eulerjs/issues"
+  },
+  "keywords": [
+    "physics",
+    "three",
+    "threejs",
+    "vehicle",
+    "car",
+    "eulerjs"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "eulerjs": "^0.1.0",
+    "three": ">=0.166.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

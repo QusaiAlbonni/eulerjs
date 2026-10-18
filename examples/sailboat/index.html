@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs sailboat</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+        font-family: system-ui, sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      .status {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #ccc;
+        font-size: 1.1rem;
+      }
+      .wind-compass {
+        position: absolute;
+        bottom: 16px;
+        left: 40px;
+        width: 100px;
+        height: 100px;
+      }
+      .wind-compass canvas {
+        background: #000;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .wind-compass-label {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        font-size: 12px;
+        pointer-events: none;
+      }
+      .help-overlay {
+        position: absolute;
+        top: 56px;
+        left: 8px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.55);
+        color: #eee;
+        font-size: 13px;
+        line-height: 1.6;
+        pointer-events: none;
+      }
+      .help-overlay kbd {
+        display: inline-block;
+        min-width: 1.4em;
+        padding: 0 4px;
+        border: 1px solid #888;
+        border-radius: 3px;
+        text-align: center;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="status" id="status">Loading the boat…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

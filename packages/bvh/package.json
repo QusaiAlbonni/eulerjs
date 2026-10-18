@@ -1,0 +1,48 @@
+{
+  "name": "@eulerjs/bvh",
+  "version": "0.1.0",
+  "description": "Triangle mesh colliders for eulerjs, on three-mesh-bvh",
+  "type": "module",
+  "license": "MIT",
+  "author": "Qusay Albonni",
+  "homepage": "https://qusaialbonni.github.io/eulerjs/bvh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QusaiAlbonni/eulerjs.git",
+    "directory": "packages/bvh"
+  },
+  "bugs": {
+    "url": "https://github.com/QusaiAlbonni/eulerjs/issues"
+  },
+  "keywords": [
+    "physics",
+    "three",
+    "threejs",
+    "bvh",
+    "collision",
+    "eulerjs"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "eulerjs": "^0.1.0",
+    "three": ">=0.166.0",
+    "three-mesh-bvh": ">=0.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

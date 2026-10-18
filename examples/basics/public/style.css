@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #11151c;
+  color: #d8dee9;
+  font-family: system-ui, sans-serif;
+}
+canvas {
+  display: block;
+}
+.caption {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  margin: 0;
+  max-width: calc(100% - 56px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgb(17 21 28 / 75%);
+  font-size: 14px;
+}
+.caption a {
+  color: #88c0d0;
+}

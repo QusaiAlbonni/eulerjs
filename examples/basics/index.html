@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs examples</title>
+    <style>
+      body { margin: 0; padding: 32px 16px; background: #11151c; color: #d8dee9; font-family: system-ui, sans-serif; }
+      main { max-width: 640px; margin: 0 auto; }
+      a { color: #88c0d0; }
+      li { margin-bottom: 12px; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>eulerjs examples</h1>
+      <p>Each example is one short file in <code>src/</code>; <code>src/stage.ts</code> holds the three.js boilerplate they share.</p>
+      <ol>
+        <li><a href="hello.html">hello</a>: a world, a body bound to a mesh, and the render loop.</li>
+        <li><a href="tumbling.html">tumbling</a>: exact inertia from meshes, and why the gyroscopic term matters.</li>
+        <li><a href="springs.html">springs</a>: writing your own Behavior and Plugin.</li>
+        <li><a href="chain.html">chain</a>: links pinned together with <code>DistanceJoint</code>s.</li>
+        <li><a href="collisions.html">collisions</a>: a pyramid of crates, and balls to throw at it.</li>
+        <li><a href="floating.html">floating</a>: cork, pine and oak afloat on a spectral sea with <code>@eulerjs/marine</code>.</li>
+        <li><a href="joints.html">joints</a>: hinges with limits and motors, a slider servo, a cone-twist joint, and fixed joints that break.</li>
+        <li><a href="queries.html">queries</a>: ray casts, shape casts and overlap tests.</li>
+        <li><a href="sensors.html">sensors</a>: trigger zones and contact events.</li>
+        <li><a href="terrain.html">terrain</a>: heightfield terrain, cylinders and cones, and a triangle mesh with <code>@eulerjs/bvh</code>.</li>
+        <li><a href="solvers.html">solvers</a>: XPBD and soft step side by side.</li>
+      </ol>
+      <p>For full games built on the same API, see <code>examples/sailboat</code> (buoyancy, sails, a boat hitting rocks and floating crates) and <code>examples/city</code> (a car, ragdoll pedestrians with joint limits, and a city of props).</p>
+    </main>
+  </body>
+</html>

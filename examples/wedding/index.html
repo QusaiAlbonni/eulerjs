@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs wedding</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #f3dcc2;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      canvas {
+        display: block;
+        cursor: pointer;
+      }
+      .crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 6px;
+        height: 6px;
+        margin: -3px 0 0 -3px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+        pointer-events: none;
+      }
+      .hint {
+        position: absolute;
+        top: calc(50% + 18px);
+        width: 100%;
+        text-align: center;
+        color: #fff;
+        font-size: 15px;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+        pointer-events: none;
+      }
+      .awake {
+        position: absolute;
+        right: 16px;
+        bottom: 14px;
+        color: #fff;
+        font-size: 14px;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+        font-variant-numeric: tabular-nums;
+      }
+      .welcome {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 22px 30px;
+        border-radius: 10px;
+        background: rgba(40, 28, 22, 0.72);
+        color: #f7ecdf;
+        font-size: 16px;
+        line-height: 1.7;
+        text-align: center;
+        pointer-events: none;
+      }
+      .welcome h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+        font-weight: normal;
+      }
+      .welcome kbd {
+        display: inline-block;
+        min-width: 1.3em;
+        padding: 0 5px;
+        border: 1px solid #b9a58f;
+        border-radius: 3px;
+        font-family: inherit;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="crosshair"></div>
+    <div class="hint" id="hint"></div>
+    <div class="awake" id="awake"></div>
+    <div class="welcome" id="welcome">
+      <h1>The wedding</h1>
+      Click to come in<br />
+      <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br />
+      click to shove or throw &nbsp; <kbd>E</kbd> pick up, put down &nbsp; <kbd>R</kbd> back to the entrance<br />
+      <kbd>Esc</kbd> to let go of the mouse
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

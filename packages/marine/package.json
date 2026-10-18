@@ -1,0 +1,56 @@
+{
+  "name": "@eulerjs/marine",
+  "version": "0.1.0",
+  "description": "Waves, buoyancy and foils (sails, keels, rudders) for eulerjs",
+  "type": "module",
+  "license": "MIT",
+  "author": "Qusay Albonni",
+  "homepage": "https://qusaialbonni.github.io/eulerjs/marine/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QusaiAlbonni/eulerjs.git",
+    "directory": "packages/marine"
+  },
+  "bugs": {
+    "url": "https://github.com/QusaiAlbonni/eulerjs/issues"
+  },
+  "keywords": [
+    "physics",
+    "three",
+    "threejs",
+    "buoyancy",
+    "water",
+    "sailing",
+    "eulerjs"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./spectral-worker": {
+      "types": "./dist/waves/spectralWorkerEntry.d.ts",
+      "default": "./dist/waves/spectralWorkerEntry.js"
+    },
+    "./webgpu": {
+      "types": "./dist/webgpu/index.d.ts",
+      "default": "./dist/webgpu/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "eulerjs": "^0.1.0",
+    "three": ">=0.166.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

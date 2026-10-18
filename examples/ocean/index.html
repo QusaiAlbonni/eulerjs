@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs · spectral ocean</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #8fb3cc; font: 13px/1.45 system-ui, sans-serif; }
+      #panel { position: fixed; top: 12px; left: 12px; padding: 10px 12px; border-radius: 8px; background: rgb(12 20 28 / 0.78); color: #e4ecf3; min-width: 260px; }
+      #panel label { display: block; margin: 4px 0; }
+      #panel input[type='range'] { width: 120px; vertical-align: middle; }
+      #panel select, #panel button { font: inherit; }
+      #panel .heights button { margin-right: 4px; }
+      #stats { margin-top: 8px; white-space: pre; font-variant-numeric: tabular-nums; }
+      a { color: #9cc9ec; }
+    </style>
+  </head>
+  <body>
+    <div id="panel">
+      <div><a href="./">eulerjs</a> · a spectral sea drawn to the horizon, crates afloat on the same waves</div>
+      <label>Level of detail <select id="lod"><option value="quadtree">quadtree (CDLOD)</option><option value="rings">rings (clipmap)</option></select></label>
+      <label><input type="checkbox" id="culling" checked /> cull the quadtree to the view</label>
+      <label><input type="checkbox" id="wireframe" /> wireframe</label>
+      <label>Wind over the sea <input type="range" id="windSpeed" min="2" max="30" step="0.5" value="12.5" /> <span id="windSpeedValue"></span></label>
+      <label>Wave height × <input type="range" id="heightScale" min="0.1" max="5" step="0.05" value="2.05" /> <span id="heightScaleValue"></span></label>
+      <label>Choppiness <input type="range" id="choppiness" min="0" max="2" step="0.05" value="1.3" /> <span id="choppinessValue"></span></label>
+      <label>Foam forms below <input type="range" id="foamBias" min="0.3" max="1" step="0.01" value="0.68" /> <span id="foamBiasValue"></span></label>
+      <label>Foam grows <input type="range" id="foamGrowth" min="0" max="100" step="1" value="15" /> <span id="foamGrowthValue"></span></label>
+      <label>Foam fades <input type="range" id="foamDecay" min="0.2" max="10" step="0.1" value="1.8" /> <span id="foamDecayValue"></span></label>
+      <label>Foam forms sooner on crests by <input type="range" id="foamPeakLift" min="0" max="0.6" step="0.01" value="0" /> <span id="foamPeakLiftValue"></span></label>
+      <label>Foam on peaks × <input type="range" id="foamPeakBoost" min="0" max="15" step="0.1" value="2.8" /> <span id="foamPeakBoostValue"></span></label>
+      <label>Foam reaches down to <input type="range" id="foamLowest" min="-1" max="1" step="0.05" value="-0.15" /> <span id="foamLowestValue"></span></label>
+      <div class="heights">Camera at <button data-height="2">2 m</button><button data-height="30">30 m</button><button data-height="400">400 m</button></div>
+      <div id="stats">…</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
