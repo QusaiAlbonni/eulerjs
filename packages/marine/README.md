@@ -5,7 +5,7 @@ draws the same waves the physics floats on, to the horizon. Documentation:
 https://qusaialbonni.github.io/eulerjs/marine/
 
 ```sh
-npm install @eulerjs/marine eulerjs three
+npm install @eulerjs/marine @eulerjs/core three
 ```
 
 ```ts

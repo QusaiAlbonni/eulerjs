@@ -12,7 +12,7 @@ in water and air. It gives you
   `SpectralWater` for three's `WebGPURenderer`, and `WaterMesh` for `WebGLRenderer`.
 
 ```sh
-npm install @eulerjs/marine eulerjs three
+npm install @eulerjs/marine @eulerjs/core three
 ```
 
 It needs three 0.166 or later, and `@eulerjs/marine/webgpu` 0.186 or later: three's

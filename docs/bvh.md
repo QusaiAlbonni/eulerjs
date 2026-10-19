@@ -5,7 +5,7 @@ a rock face or a sculpture, found quickly with a bounding volume tree from
 [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh).
 
 ```sh
-npm install @eulerjs/bvh eulerjs three three-mesh-bvh
+npm install @eulerjs/bvh @eulerjs/core three three-mesh-bvh
 ```
 
 It needs three 0.166 or later and three-mesh-bvh 0.9 or later, which is a peer dependency: you
