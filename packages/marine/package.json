@@ -1,6 +1,6 @@
 {
   "name": "@eulerjs/marine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Waves, buoyancy and foils (sails, keels, rudders) for eulerjs",
   "type": "module",
   "license": "MIT",
