@@ -5,4 +5,4 @@
  * @module @eulerjs/vehicle
  */
 export { RaycastVehicle, Wheel } from './RaycastVehicle.js';
-export type { RaycastVehicleOptions, WheelOptions } from './RaycastVehicle.js';
+export type { GroundSurface, RaycastVehicleOptions, WheelOptions } from './RaycastVehicle.js';

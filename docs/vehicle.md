@@ -3,10 +3,11 @@
 `@eulerjs/vehicle` drives a body on wheels the way most games do: each wheel is a **ray** cast
 down from where its suspension is mounted on the chassis, a **spring and damper** between the
 mount and whatever ground the ray meets, and a **tyre** that grips up to a limit and slides
-beyond it. The chassis is one ordinary body; the wheels are not bodies at all.
+beyond it. The chassis is one ordinary body; the wheels are not bodies at all. For a racing car,
+[slip tyres](#slip-tyres) give each wheel a spin of its own and a tyre curve.
 
 ```sh
-npm install @eulerjs/vehicle eulerjs three
+npm install @eulerjs/vehicle @eulerjs/core three
 ```
 
 It needs three 0.166 or later.
@@ -57,6 +58,8 @@ with it, waiting for something to push it before it notices the driver.
 | `up` | +y | The chassis' up axis, in its own frame: the wheels hang down it. |
 | `forward` | +z | The chassis' forward axis, in its own frame. |
 | `sidewaysResponse` | `0.5` | The share of a wheel's sideways slip its tyre takes out each step, grip allowing. All of it at once would overshoot, the other wheels pulling the same way. |
+| `tyres` | `'grip'` | `'grip'`: each tyre grips up to a limit and slides beyond it, its wheel turning with the ground. `'slip'`: each wheel spins of its own, and its tyre pulls with how much it slips. See [Slip tyres](#slip-tyres). |
+| `surface` | none | `(point, hit) => GroundSurface`: what the ground is like where a wheel touches it. See [What the ground is like](#what-the-ground-is-like). |
 
 `vehicle.wheels` are the `Wheel`s, in the order given, and `vehicle.forwardSpeed(body)` the body's
 speed along its forward axis, in m/s: negative going backward.
@@ -72,6 +75,17 @@ speed along its forward axis, in m/s: negative going backward.
 | `springDamping` | required | In N·s/m. |
 | `grip` | `1` | The most force the tyre takes along the ground, as a share of the load on it: about 1 on dry asphalt. |
 | `rollingResistance` | `0.015` | The force against the tyre's rolling, as a share of the load on it. |
+
+With `tyres: 'slip'`, each wheel also takes:
+
+| Wheel option | Default | What it is |
+| --- | --- | --- |
+| `inertia` | `1` | The wheel's moment of inertia about its axle, tyre, rim and brake disc together, in kg·m². |
+| `peakSlipAngle` | `0.1` | The slip angle the tyre corners hardest at, in radians: about 6°. |
+| `peakSlipRatio` | `0.1` | The slip ratio, (spin × radius − speed) / speed, the tyre pulls or brakes hardest at. |
+| `slidingGrip` | `0.75` | The grip left when the tyre slides well past its peak, as a share of it: above 0, below 1. |
+| `loadSensitivity` | `0.1` | How much less the tyre grips for each newton as it is loaded: k in grip × (load / nominalLoad)^−k. Twice the load gives 7% less grip a newton at 0.1. |
+| `nominalLoad` | its share of the weight | The load, in newtons, the tyre grips by `grip` at. |
 
 ### Choosing the springs
 
@@ -111,6 +125,9 @@ What the driver sets, on each wheel, as often as you like:
 - **`brakeForce`**: the most force the brake slows the wheel with, in newtons. It stops the wheel
   but never drives it backward: a car braked on a slope stands still rather than creeping down it.
 - **`grip`**: change it to make the tyre slide more or less, as a handbrake does to the rear tyres.
+- **`driveTorque`**, **`brakeTorque`**: with slip tyres, the engine's torque on the wheel and the
+  most the brake slows it with, in N·m. `driveForce` and `brakeForce` add to them, times the
+  radius.
 
 `springStiffness`, `springDamping` and `rollingResistance` can be changed too; `mount`, `radius`
 and `suspensionLength` are fixed.
@@ -127,9 +144,13 @@ After every step, each wheel says what it was doing:
 | `onGround` | Whether the tyre was on the ground. |
 | `compression` | How far its spring was compressed, in metres; 0 off the ground. |
 | `load` | How hard the ground pushed on the tyre, in newtons. |
-| `sliding` | Whether the tyre was asked for more grip than it has, and slid. |
+| `sliding` | Whether the tyre was asked for more grip than it has, and slid; with slip tyres, whether it was past its peak. |
 | `contactPoint`, `contactNormal` | Where it touched the ground, and the ground's normal there, in world space. |
 | `ground` | The body it stood on. |
+| `surface` | What the `surface` callback said the ground was like there. |
+| `spinSpeed` | With slip tyres: how fast the wheel spins, in rad/s, positive rolling forward. |
+| `slipRatio` | With slip tyres: (spin × radius − speed) / speed: positive spinning up, −1 locked. |
+| `slipAngle` | With slip tyres: the angle between where the tyre points and where it goes, in radians, positive sliding to its left. |
 | `center` | Where the wheel's centre is, in world space. |
 | `spinAngle` | How far the wheel has turned about its axle, in radians. |
 
@@ -157,6 +178,36 @@ What the wheels push on, they push back on. A car standing on a crate presses it
 with the car's weight; a car on a moving platform is carried along by its tyres' grip; a car
 driving off a loose plank drags it.
 
+### What the ground is like
+
+A `surface` callback is asked, for each wheel on the ground each step, what the ground is like
+where its ray hit, and returns a `GroundSurface`:
+
+| Field | Default | What it is |
+| --- | --- | --- |
+| `grip` | `1` | What it scales the tyre's grip by: less on grass or gravel. |
+| `rollingResistance` | `0` | Added to the tyre's rolling resistance, as a share of its load: deep gravel drags a car down. |
+| `height` | `0` | How far the ground there stands above the surface the ray hit, in metres, below it if negative. |
+
+`height` gives a flat collider bumps, ripples and kerbs too small or too many to be colliders of
+their own: the wheel stands that much higher, its spring compressed as on any ground, and the
+tyre's forces push where it now touches. A kerb under one side leans the car away from it; grass
+that swells by a few centimetres keeps the suspension working; a gravel trap with a negative
+height lets the car sink in. Return the same object for the same kind of ground, its `height`
+set each time it is asked, and `wheel.surface` tells which ground each wheel is on without
+allocating; the height is read as soon as it is returned.
+
+```ts
+const asphalt: GroundSurface = { height: 0 };
+const vehicle = body.addBehavior(new RaycastVehicle({
+  wheels,
+  surface: (point) => {
+    asphalt.height = 0.004 * Math.sin(point.x / 3) * Math.sin(point.z / 5);
+    return asphalt;
+  },
+}));
+```
+
 ## How the tyres work
 
 The **spring** pushes along the ground's normal with its stiffness times its compression, plus
@@ -178,6 +229,32 @@ The **tyre** then works in its own directions on the ground, turned by its steer
 It pushes **where the tyre touches the ground**, not at the wheel's centre or the mount. Pushed
 anywhere else, its pull against the slip would no longer damp the body's roll, and a car swerving
 one way and back would roll over.
+
+### Slip tyres
+
+With `tyres: 'slip'` each wheel is a spinning body of its own, turned by `driveTorque`, slowed by
+`brakeTorque`, and held to the ground going by through its tyre. The tyre pulls with how much it
+**slips**: along it, the slip ratio, how much faster or slower the tyre's tread goes than the
+ground under it; across it, the slip angle. The pull follows a tyre curve (Pacejka's magic
+formula, its shape set by `slidingGrip`): it grows with the slip, peaks at `peakSlipRatio` and
+`peakSlipAngle`, and falls to `slidingGrip` of the peak past them. So a wheel given too much
+torque spins up and lets the back step out, a wheel braked too hard locks and stops steering, and
+a car pushed past its limit in a corner slides with less grip than it had, as a real one does.
+
+- **Along and across share one grip.** The two slips, each as a share of its peak, add up as the
+  sides of a right angle, and the tyre's pull goes along that: braking hard into a corner leaves
+  less grip to turn with.
+- **More load, less grip a newton.** The peak pull is
+  `grip × load × (load / nominalLoad)^−loadSensitivity`: a car's downforce, or the outside wheels
+  in a corner, give less than their load's worth of grip.
+- **The spin is stepped four times a step**, against the tyre's pull, which holds it so stiffly
+  that each of those steps leans on that stiffness (implicitly) to stay steady.
+- **Slow, the grip tyre takes over.** Going from 4 m/s over the ground down to 2 m/s, slip tyres
+  hand over to the grip tyres' friction: a slip measured against nearly no speed would swing
+  wildly, and the grip tyres hold a braked car still on a slope.
+
+`grip`, `sidewaysResponse`, `rollingResistance` and the `surface` callback work as they do for
+grip tyres.
 
 ## The city's car
 
@@ -222,6 +299,25 @@ on the chassis (a drag area of 0.65 m²), and R to set the car back on its wheel
 wheel on a strut placed at `mount.y - suspensionLength + compression` under its mount, turned by
 `steerAngle`, with the tyre spinning by `spinAngle`.
 
+## The F1 car
+
+`examples/f1` races a Formula 1 car round Monza on slip tyres. Its numbers are in
+[`specification.ts`](https://github.com/QusaiAlbonni/eulerjs/blob/main/examples/f1/src/car/specification.ts):
+800 kg, slicks of grip 1.7 at the front and 1.87 at the wider rear, peaking at 7° and a slip
+ratio of 0.1, with a load sensitivity of 0.15, so its downforce, twice its weight at 300 km/h,
+gives it less than twice the grip. Its springs are stiff (140 000 to 160 000 N/m over 8 cm of
+travel), as the aerodynamics want the car held level. Around `RaycastVehicle` it adds, each
+step before the wheels':
+
+- **the powertrain**, an engine's torque curve through eight gears to the rear wheels'
+  `driveTorque`, and the engine's own inertia added to theirs, its square through the gear;
+- **traction control and ABS**, easing the drive or a brake while a tyre is past its peak, read
+  from `slipRatio` and `slipAngle`;
+- **the aerodynamics**, downforce and drag as forces on the two axles, and DRS;
+- **the track's surface**: one flat collider, with a `surface` callback that gives the kerbs
+  their height and less grip, and the grass and the gravel less grip, more drag and an uneven
+  height of their own.
+
 ## Cost
 
 `npm run bench` drives 100 cars of four wheels round a heightfield. On one desktop machine it
@@ -232,9 +328,10 @@ took about 4.5 ms a step, wheels, chassis contacts and all.
 - A car resting on its bump stops for good, with springs far too weak for it, creeps along the
   ground at a centimetre or two a second: each wheel's stop acts in turn. Stops acting together
   would hold it still (`TODO.md`).
-- The tyre model is a friction limit, not a tyre curve: grip doesn't fall off past the peak, and
-  there is no load sensitivity or camber. A wheel has no inertia of its own; its spin is worked
-  out from the speed it rolls at.
+- Grip tyres are a friction limit, not a tyre curve: grip doesn't fall off past the peak, and
+  there is no load sensitivity. Their wheels have no inertia of their own; their spin is worked out
+  from the speed they roll at. Slip tyres have both, but neither has camber, and a slip tyre's
+  pull comes at once, with no tyre's stretch to build up through (relaxation length).
 - Each wheel touches the ground at one point, straight under its mount: it drops into a gap a
   real tyre would bridge, and feels a kerb when its ray reaches it rather than when the front of
   the tyre would.
@@ -244,4 +341,4 @@ took about 4.5 ms a step, wheels, chassis contacts and all.
 - [Bodies](/guide/bodies): behaviours, mass properties and sleeping
 - [Colliders](/guide/colliders): the ground the wheels find
 - [Triangle meshes](/bvh): roads and levels as `MeshCollider`s
-- [Examples](/examples/): the city
+- [Examples](/examples/): the city, and the F1 car

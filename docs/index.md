@@ -47,7 +47,7 @@ features:
     linkText: Buoyancy
   - icon: 🚗
     title: Cars and terrain
-    details: Ray-cast vehicles with springs, grip and handbrakes, heightfields, and any triangle mesh as a collider on three-mesh-bvh.
+    details: Ray-cast vehicles with springs and grip or slip tyres, heightfields, and any triangle mesh as a collider on three-mesh-bvh.
     link: /vehicle
     linkText: '@eulerjs/vehicle'
 ---

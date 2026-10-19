@@ -108,6 +108,75 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('ray-ca
     expect(body.angularVelocity.y).toBeGreaterThan(0);
   });
 
+  it('drags on ground its surface says is heavy, asked where each wheel touches', () => {
+    const coastingOn = (rollingResistance: number) => {
+      const world = makeWorld();
+      const asked: Vector3[] = [];
+      const body = world.addBody(
+        new Body({ massProperties: MassProperties.box(chassisSize, mass), position: new Vector3(0, rideHeight, 0), canSleep: false, colliders: [new BoxCollider({ size: chassisSize })] }),
+      );
+      const vehicle = body.addBehavior(
+        new RaycastVehicle({
+          wheels: mounts.map((mount) => ({ mount, radius: wheelRadius, suspensionLength, springStiffness, springDamping: 3000, rollingResistance: 0 })),
+          surface: (point) => {
+            asked.push(point.clone());
+            return { rollingResistance };
+          },
+        }),
+      );
+      runFor(world, 1);
+      body.velocity.set(0, 0, 10);
+      const before = vehicle.forwardSpeed(body);
+      runFor(world, 0.5);
+      return { slowing: (before - vehicle.forwardSpeed(body)) / 0.5, asked, vehicle };
+    };
+    // gravel's drag: a fifth of the car's weight
+    const gravel = coastingOn(0.2);
+    expect(gravel.slowing / (0.2 * gravity)).toBeCloseTo(1, 1);
+    expect(Math.abs(coastingOn(0).slowing)).toBeLessThan(0.01);
+    // asked at each wheel's contact, on the ground under it
+    const lastFour = gravel.asked.slice(-4);
+    lastFour.forEach((point, index) => {
+      expect(point.y).toBeCloseTo(0, 3);
+      expect(point.x).toBeCloseTo(mounts[index]!.x, 1);
+    });
+    expect(gravel.vehicle.wheels.every((wheel) => wheel.surface?.rollingResistance === 0.2)).toBe(true);
+  });
+
+  it('stands on ground its surface says is higher or lower, its springs as compressed as on flat ground; and as before with no height', () => {
+    const standingOn = (height: number | undefined, under: (point: Vector3) => boolean = () => true) => {
+      const world = makeWorld();
+      const body = world.addBody(
+        new Body({ massProperties: MassProperties.box(chassisSize, mass), position: new Vector3(0, rideHeight, 0), canSleep: false, colliders: [new BoxCollider({ size: chassisSize })] }),
+      );
+      const vehicle = body.addBehavior(
+        new RaycastVehicle({
+          wheels: mounts.map((mount) => ({ mount, radius: wheelRadius, suspensionLength, springStiffness, springDamping: 3000, rollingResistance: 0 })),
+          surface: (point) => (under(point) ? { height } : {}),
+        }),
+      );
+      runFor(world, 2);
+      return { body, vehicle };
+    };
+    // a bump of 5 cm under every wheel lifts the car by 5 cm, its wheels drawn on it
+    const raised = standingOn(0.05);
+    expect(raised.body.position.y).toBeCloseTo(rideHeight + 0.05, 3);
+    for (const wheel of raised.vehicle.wheels) {
+      expect(wheel.center.y).toBeCloseTo(wheelRadius + 0.05, 3);
+      expect(wheel.contactPoint.y).toBeCloseTo(0.05, 6);
+    }
+    expect(standingOn(-0.03).body.position.y).toBeCloseTo(rideHeight - 0.03, 3);
+    // a kerb under the left wheels only: the car leans away from it, by the kerb's height across the track
+    const leaning = standingOn(0.06, (point) => point.x > 0);
+    const left = new Vector3(1, 0, 0).applyQuaternion(leaning.body.quaternion);
+    expect(Math.asin(left.y)).toBeCloseTo(Math.atan(0.06 / 1.6), 2);
+    // with no height said, exactly as with none at all
+    const flat = standingOn(undefined);
+    const zero = standingOn(0);
+    expect(flat.body.position.equals(zero.body.position)).toBe(true);
+    expect(flat.body.quaternion.equals(zero.body.quaternion)).toBe(true);
+  });
+
   it('stands on a slope square to it, held by its brakes, as on any ground', () => {
     const tilt = 0.2;
     const slope = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -tilt);

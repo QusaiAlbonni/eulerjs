@@ -87,7 +87,7 @@ machine, so measure your own scenes too: `npm run bench`.
 | `@eulerjs/core` | `World`, `Body`, `MassProperties`, `Voxels`, colliders, joints, the JavaScript backend, the plugin, behaviour and backend interfaces |
 | `@eulerjs/marine` | `SumOfSines` and `SpectralWaves` seas, `Ocean`, `Wind`, `Buoyancy`, `Foil` and polars, `WaterMesh`; `SpectralWater` in `@eulerjs/marine/webgpu` |
 | `@eulerjs/bvh` | `MeshCollider`: any triangle mesh as a static or kinematic collider, on three-mesh-bvh |
-| `@eulerjs/vehicle` | `RaycastVehicle`: wheels on springs under a chassis, with tyres that grip up to a limit, on any ground |
+| `@eulerjs/vehicle` | `RaycastVehicle`: wheels on springs under a chassis, with tyres that grip up to a limit or slip tyres on a tyre curve, on any ground |
 
 All need `three` 0.166 or later as a peer dependency, except `@eulerjs/marine/webgpu`, the
 spectral sea's water, which needs 0.186 or later.
