@@ -18,6 +18,7 @@ cd eulerjs
 npm install
 npm run dev          # the sailboat
 npm run dev:city     # the city
+npm run dev:f1       # the F1 car at Monza
 npm run dev:wedding  # the wedding
 npm run dev:ocean    # the spectral ocean
 npm run dev:basics   # the short examples

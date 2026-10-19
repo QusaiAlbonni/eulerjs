@@ -425,7 +425,7 @@ it, either layout to switch between and their costs shown; `?compare=1` measures
 heights. `gpu-check.html` checks the GPU's waves against the CPU's, and `physics-bench.html` what
 floating costs on the main thread and in a worker.
 
-Three complete games are built only on the public API:
+Four complete games are built only on the public API:
 
 - `examples/sailboat` (`npm run dev`): sailing on a spectral sea among rocks that stand on the
   sea floor and crates drifting on the water, which the boat's hull shoves aside, with the sea's
@@ -439,7 +439,12 @@ Three complete games are built only on the public API:
   and hips and hinges at the elbows and knees, all with limits and friction: their joints' drives
   hold the walk's pose and a `TargetJoint` carries their hips along. Knocked down, they go limp,
   fall in a heap without limbs passing through each other, and get up again.
-
+- `examples/f1` (`npm run dev:f1`): a time trial in a Formula 1 car round Monza, the circuit
+  laid out from OpenStreetMap. The car is a `RaycastVehicle` on slip tyres, which spin up, lock
+  and slide past their peak, with downforce and DRS, an eight-speed seamless gearbox, traction
+  control and ABS. The kerbs, grass and gravel are one flat collider whose `surface` callback
+  gives each its grip, its drag and its bumps. Its engine's sound is simulated as it runs, a port
+  of engine-sim's (MIT) in a worker, with the hybrid's MGU-K and turbo whine on top.
 - `examples/wedding` (`npm run dev:wedding`): a wedding in first person. A ceremony lawn with
   an arch, a stage and rows of chairs, and a marquee laid for the reception: round tables set for
   six with plates, flutes, bottles and flowers, a tiered cake, a champagne tower and a pile of
@@ -455,6 +460,7 @@ Three complete games are built only on the public API:
 npm install
 npm run dev           # the sailboat example on http://localhost:5173
 npm run dev:city      # the city driving example
+npm run dev:f1        # the F1 car at Monza
 npm test              # all tests
 npm run coverage      # tests with coverage thresholds (90% lines)
 npm run check         # lint, typecheck, coverage and build, as CI does

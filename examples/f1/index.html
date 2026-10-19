@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs F1</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #b8c8d8;
+        font-family: system-ui, sans-serif;
+        color: #f2f4f7;
+      }
+      canvas {
+        display: block;
+      }
+      /* the panels share one look: dark glass, thin edges */
+      .cluster,
+      .g-meter,
+      .laps,
+      .help {
+        position: absolute;
+        background: rgba(12, 15, 20, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        backdrop-filter: blur(6px);
+        user-select: none;
+      }
+      .cluster {
+        right: 22px;
+        bottom: 22px;
+        padding: 12px 18px 14px;
+      }
+      .shift-lights {
+        display: flex;
+        gap: 5px;
+        justify-content: center;
+        margin-bottom: 10px;
+      }
+      .light {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #262a31;
+        transition: background 0.04s;
+      }
+      .light.green.on {
+        background: #3ddc6a;
+        box-shadow: 0 0 8px #3ddc6a;
+      }
+      .light.red.on {
+        background: #ff3b3b;
+        box-shadow: 0 0 8px #ff3b3b;
+      }
+      .light.blue.on {
+        background: #4a95ff;
+        box-shadow: 0 0 8px #4a95ff;
+      }
+      .cluster-middle {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .pedals {
+        display: flex;
+        gap: 6px;
+        height: 64px;
+      }
+      .pedal-track {
+        width: 10px;
+        height: 100%;
+        border-radius: 5px;
+        background: #262a31;
+        overflow: hidden;
+        display: flex;
+        align-items: flex-end;
+      }
+      .pedal {
+        width: 100%;
+        height: 100%;
+        transform-origin: bottom;
+        transform: scaleY(0);
+      }
+      .pedal.throttle {
+        background: #3ddc6a;
+      }
+      .pedal.brake {
+        background: #ff3b3b;
+      }
+      .readout {
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-rows: auto auto;
+        align-items: end;
+        column-gap: 14px;
+        min-width: 170px;
+      }
+      .gear {
+        grid-row: span 2;
+        font-size: 64px;
+        font-weight: 800;
+        line-height: 0.9;
+        color: #ffffff;
+        font-variant-numeric: tabular-nums;
+      }
+      .speed {
+        font-size: 40px;
+        font-weight: 700;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      .unit {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: #9aa3ad;
+        text-align: right;
+      }
+      .badges {
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 6px;
+      }
+      .badge {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding: 3px 7px;
+        border-radius: 5px;
+        background: #262a31;
+        color: #6b7480;
+        text-align: center;
+      }
+      .badge.on {
+        color: #e8ecf1;
+      }
+      .badge.acting {
+        background: #f2a531;
+        color: #111;
+      }
+      .badge.drs.on {
+        background: #3ddc6a;
+        color: #111;
+      }
+      .badge.mode {
+        color: #e8ecf1;
+      }
+      .g-meter {
+        left: 22px;
+        bottom: 22px;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+      }
+      .g-ring {
+        position: absolute;
+        inset: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 50%;
+      }
+      .g-ring.inner {
+        inset: 32px;
+      }
+      .g-dot {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        margin: -6px 0 0 -6px;
+        border-radius: 50%;
+        background: #f2a531;
+        box-shadow: 0 0 8px #f2a531;
+      }
+      .g-value {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -22px;
+        text-align: center;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: #c9d0d8;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+      }
+      .laps {
+        right: 22px;
+        top: 22px;
+        padding: 12px 16px;
+        min-width: 170px;
+        font-variant-numeric: tabular-nums;
+      }
+      .lap-now {
+        font-size: 30px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .lap-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .lap-label {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        color: #9aa3ad;
+      }
+      .lap-time.best {
+        color: #c58cff;
+      }
+      .minimap {
+        position: absolute;
+        left: 22px;
+        top: 22px;
+        width: 220px;
+        height: 220px;
+        border-radius: 14px;
+        background: rgba(12, 15, 20, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(6px);
+      }
+      .credit {
+        position: absolute;
+        left: 50%;
+        bottom: 6px;
+        transform: translateX(-50%);
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.75);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      }
+      .credit a {
+        color: inherit;
+      }
+      .help {
+        left: 50%;
+        top: 22px;
+        transform: translateX(-50%);
+        padding: 12px 16px;
+        font-size: 13px;
+        line-height: 1.75;
+        color: #d9dee4;
+      }
+      .help.hidden {
+        display: none;
+      }
+      .help kbd {
+        display: inline-block;
+        min-width: 18px;
+        padding: 0 5px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 4px;
+        font: inherit;
+        font-size: 12px;
+        text-align: center;
+      }
+      .help .title {
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 4px;
+      }
+      .help a {
+        color: #6fb0f2;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="help" id="help">
+      <div class="title"><a href="https://qusaialbonni.github.io/eulerjs/">eulerjs</a> · F1 at Monza: wait for the lights to go out</div>
+      <kbd>W</kbd> <kbd>S</kbd> throttle, brake · <kbd>A</kbd> <kbd>D</kbd> steer<br />
+      <kbd>E</kbd> <kbd>Q</kbd> shift up, down · <kbd>M</kbd> manual gearbox<br />
+      <kbd>Space</kbd> DRS · <kbd>T</kbd> traction control and ABS<br />
+      <kbd>C</kbd> camera · <kbd>R</kbd> back to the grid · <kbd>N</kbd> sound on, off · <kbd>H</kbd> hide this<br />
+      Gamepad: triggers, stick, bumpers to shift, <kbd>A</kbd> DRS, <kbd>Y</kbd> camera, <kbd>X</kbd> sound
+    </div>
+    <div class="credit">Monza's layout © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · engine sound after <a href="https://github.com/ange-yaghi/engine-sim">engine-sim</a> by Ange Yaghi</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

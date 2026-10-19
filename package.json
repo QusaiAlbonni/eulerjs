@@ -23,6 +23,7 @@
     "dev:city": "npm run dev -w city-example",
     "dev:wedding": "npm run dev -w wedding-example",
     "dev:ocean": "npm run dev -w ocean-example",
+    "dev:f1": "npm run dev -w f1-example",
     "check": "npm run lint && npm run typecheck && npm run coverage && npm run build",
     "docs:dev": "npm run docs:api && node scripts/build-examples.mjs && vitepress dev docs",
     "docs:examples": "node scripts/build-examples.mjs",

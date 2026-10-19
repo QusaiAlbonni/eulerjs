@@ -18,8 +18,8 @@ export default tseslint.config(
   },
   {
     // build scripts run in Node and report what they do
-    files: ['scripts/**/*.mjs'],
-    languageOptions: { globals: { process: 'readonly', console: 'readonly', URL: 'readonly' } },
+    files: ['scripts/**/*.mjs', 'examples/*/scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', fetch: 'readonly' } },
     rules: { 'no-console': 'off' },
   },
 );
