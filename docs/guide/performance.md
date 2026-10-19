@@ -95,13 +95,13 @@ Node 24, lower is better:
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| 125 boxes falling into a pile | 229 ms | 269 ms | eulerjs 1.2× faster |
-| 125 boxes in a pile, never sleeping | 224 ms | 245 ms | eulerjs 1.1× faster |
-| 125 boxes settled, same sleep thresholds | 17 ms | 248 ms | **eulerjs 14× faster** |
-| 125 boxes settled, cannon-es's looser sleep | 14 ms | 155 ms | eulerjs 11× faster |
-| 400 spheres spread out, never sleeping | 136 ms | 127 ms | cannon-es 1.1× faster |
-| 400 spheres, same sleep thresholds | 44 ms | 64 ms | eulerjs 1.5× faster |
-| 64 rocks (42-corner hulls), never sleeping | 764 ms | 6160 ms | **eulerjs 8× faster** |
+| 125 boxes falling into a pile | 235 ms | 259 ms | eulerjs 1.1× faster |
+| 125 boxes in a pile, never sleeping | 233 ms | 255 ms | eulerjs 1.1× faster |
+| 125 boxes settled, same sleep thresholds | 4 ms | 246 ms | **eulerjs 59× faster** |
+| 125 boxes settled, cannon-es's looser sleep | 4 ms | 152 ms | eulerjs 38× faster |
+| 400 spheres spread out, never sleeping | 127 ms | 130 ms | about even |
+| 400 spheres, same sleep thresholds | 15 ms | 66 ms | eulerjs 4.3× faster |
+| 64 rocks (42-corner hulls), never sleeping | 752 ms | 6168 ms | **eulerjs 8× faster** |
 
 The city example (towers, lamp posts, trees, crates, cones and barrels, mostly asleep) with a
 crowd of ragdoll pedestrians, every one awake, against the same city rebuilt in cannon-es with
@@ -109,14 +109,22 @@ the ragdolls' joints and limits matched by its cone-twist and hinge constraints:
 
 | Crowd | eulerjs soft step | eulerjs XPBD | cannon-es |
 | --- | ---: | ---: | ---: |
-| none (52 props) | 16 ms | 20 ms | 143 ms |
+| none (52 props) | 4 ms | 6 ms | 121 ms |
 | 25 people (327 bodies) | 444 ms | 496 ms | 722 ms |
 | 50 people (602 bodies) | 1026 ms | 1164 ms | 1375 ms |
 | 100 people (1152 bodies) | 2282 ms | 2635 ms | 2771 ms |
 
 The eulerjs walkers are driven by their joints' drives, which cost more than the forces that
 pull the cannon-es ones along (cannon-es has no joint drives); their joints open up by 15 mm at
-most under soft step, 6 mm under XPBD, and cannon-es's by 5 mm.
+most under soft step, 6 mm under XPBD, and cannon-es's by 5 mm. The rows with people were
+measured before eulerjs stopped visiting still bodies every step, which makes no measurable
+difference to a crowd this awake.
+
+Static scenery costs next to nothing until something reaches it: static bodies are kept in a
+tree of their bounds, so finding what touches them costs only for the bodies that move, and the
+step leaves them out unless they are moved or something rests on them. A race track walled by
+1,860 static boxes takes 0.7 ms a step with nothing moving, and 0.9 ms with 8 boxes sliding
+among them.
 
 And for accuracy (0, or the stated value, is perfect):
 

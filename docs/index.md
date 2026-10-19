@@ -60,7 +60,7 @@ Faster than cannon-es where real scenes spend their time, and right where cannon
 
 <div class="stats">
   <div class="stat">
-    <div class="number">14×</div>
+    <div class="number">59×</div>
     <div class="label">faster than cannon-es on a settled pile of boxes: what's at rest sleeps, and stays asleep</div>
   </div>
   <div class="stat">
@@ -80,7 +80,7 @@ Faster than cannon-es where real scenes spend their time, and right where cannon
 **It gets the physics right.** Stacks stand, boxes slide down slopes at the textbook
 acceleration, balls bounce to the height their restitution says, and a rock's inertia is
 integrated from its hull, not guessed from its bounding box. **It's fast where it counts:** real
-scenes are mostly at rest, and a city full of props costs a ninth of cannon-es's; with a crowd of
+scenes are mostly at rest, and a city full of props costs a thirtieth of cannon-es's; with a crowd of
 ragdolls all awake and walking it is still the faster of the two. **And it's three.js through
 and through:** give it a mesh and it works out the body.
 
@@ -94,13 +94,13 @@ second on a Ryzen 5 4600H, lower is better.
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| 125 boxes settled | **17 ms** | 248 ms | eulerjs 14× faster |
-| 64 rocks (42-corner hulls) | **764 ms** | 6160 ms | eulerjs 8× faster |
-| The city at rest | **16 ms** | 143 ms | eulerjs 9× faster |
+| 125 boxes settled | **4 ms** | 246 ms | eulerjs 59× faster |
+| 64 rocks (42-corner hulls) | **752 ms** | 6168 ms | eulerjs 8× faster |
+| The city at rest | **4 ms** | 121 ms | eulerjs 30× faster |
 | The city, 25 ragdolls walking | **444 ms** | 722 ms | eulerjs 1.6× faster |
 | The city, 100 ragdolls walking | **2282 ms** | 2771 ms | eulerjs 1.2× faster |
-| 125 boxes falling into a pile | **229 ms** | 269 ms | eulerjs 1.2× faster |
-| 400 spheres, never sleeping | 136 ms | **127 ms** | cannon-es 1.1× faster |
+| 125 boxes falling into a pile | **235 ms** | 259 ms | eulerjs 1.1× faster |
+| 400 spheres, never sleeping | 127 ms | 130 ms | about even |
 
 | Accuracy | eulerjs | cannon-es |
 | --- | ---: | ---: |

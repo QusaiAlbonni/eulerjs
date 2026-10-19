@@ -455,6 +455,11 @@ export class Body extends RigidBodyState {
     this.previousQuaternion.copy(this.quaternion);
   }
 
+  /** @internal Whether a wake or sleep request waits to be passed on. */
+  get hasSleepRequest(): boolean {
+    return this.pendingSleepRequest !== undefined;
+  }
+
   /** @internal The wake or sleep request made since the last call, for the world to pass on. */
   takeSleepRequest(): SleepRequest {
     const request = this.pendingSleepRequest;

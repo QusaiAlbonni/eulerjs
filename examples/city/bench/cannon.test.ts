@@ -29,7 +29,8 @@ import { standingPose, walkPose } from '../src/people/walkCycle.js';
  * collide with each other where the eulerjs ones do.
  */
 
-const CROWD_SIZES = [0, 25, 50, 100];
+/** The crowds the city is compared with: CITY_CROWDS, as a list such as `0,25`, picks some. */
+const CROWD_SIZES = (process.env.CITY_CROWDS ?? '0,25,50,100').split(',').map(Number);
 const WARM_UP_SECONDS = 2;
 const MEASURED_SECONDS = 20;
 const TIMESTEP = 1 / 60;

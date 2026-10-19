@@ -1,6 +1,6 @@
 import { it } from 'vitest';
 import type { World } from '@eulerjs/core';
-import { boxPile, rockPile, runSeconds, sphereField, timeStep } from './scenes.js';
+import { boxPile, rockPile, runSeconds, sphereField, timeStep, wallRing } from './scenes.js';
 
 // Not pass/fail: prints the cost of a step, to compare changes. Run with `npm run bench`.
 it('reports step cost', () => {
@@ -11,6 +11,8 @@ it('reports step cost', () => {
     ['400 spheres spread out, never sleeping', sphereField(20, false), 1],
     ['400 spheres spread out, asleep', sphereField(20), 2],
     ['64 rocks (42-corner hulls) in a heap, never sleeping', rockPile(4, false), 3],
+    ['1860 static walls, nothing moving', wallRing(1860, 0), 0.2],
+    ['1860 static walls, 8 boxes sliding among them', wallRing(1860, 8), 0.2],
   ];
   for (const [label, world, settleSeconds] of scenes) {
     runSeconds(world, settleSeconds);

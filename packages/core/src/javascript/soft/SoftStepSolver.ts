@@ -44,8 +44,16 @@ export class SoftStepSolver {
     return this.reported;
   }
 
+  /** The bodies the last step loaded, kept to reuse its array. */
+  private loaded: SolverBody[] = [];
+  private readonly loadedStatics = new Set<SolverBody>();
+
+  /**
+   * `movingBodies`: every body but the static ones, in the order they are solved in. The static
+   * ones the step's contacts and joints reach are loaded after them: no others take part.
+   */
   step(
-    solverBodies: readonly SolverBody[],
+    movingBodies: readonly SolverBody[],
     jointBodies: ReadonlyMap<DistanceJoint, readonly [SolverBody, SolverBody | undefined]>,
     sixDofBodies: ReadonlyMap<SixDofJoint, readonly [SolverBody, SolverBody | undefined]>,
     manifolds: readonly Manifold[],
@@ -58,7 +66,7 @@ export class SoftStepSolver {
     const fixedSoftness = makeSoft(Math.min(FIXED_CONTACT_STIFFENING * contactHertz, stiffest), CONTACT_DAMPING_RATIO, substep);
     const jointSoftness = makeSoft(stiffest, JOINT_DAMPING_RATIO, substep);
     const bodies = this.bodies;
-    bodies.load(solverBodies);
+    bodies.load(this.withStaticsReached(movingBodies, manifolds, jointBodies, sixDofBodies));
     this.contactTable.prepare(manifolds, bodies);
     this.jointTable.prepare(jointBodies, bodies, substep);
     this.sixDofTable.prepare(sixDofBodies, bodies);
@@ -84,6 +92,38 @@ export class SoftStepSolver {
     this.sixDofTable.finish(substep);
     bodies.store();
     this.reported = undefined;
+  }
+
+  /** `movingBodies` and, after them, the static bodies any manifold or joint of the step reaches. */
+  private withStaticsReached(
+    movingBodies: readonly SolverBody[],
+    manifolds: readonly Manifold[],
+    jointBodies: ReadonlyMap<DistanceJoint, readonly [SolverBody, SolverBody | undefined]>,
+    sixDofBodies: ReadonlyMap<SixDofJoint, readonly [SolverBody, SolverBody | undefined]>,
+  ): readonly SolverBody[] {
+    const loaded = this.loaded;
+    const statics = this.loadedStatics;
+    loaded.length = 0;
+    statics.clear();
+    for (const body of movingBodies) loaded.push(body);
+    const reach = (body: SolverBody | undefined) => {
+      if (body?.type !== 'static' || statics.has(body)) return;
+      statics.add(body);
+      loaded.push(body);
+    };
+    for (const manifold of manifolds) {
+      reach(manifold.bodyA);
+      reach(manifold.bodyB);
+    }
+    for (const [bodyA, bodyB] of jointBodies.values()) {
+      reach(bodyA);
+      reach(bodyB);
+    }
+    for (const [bodyA, bodyB] of sixDofBodies.values()) {
+      reach(bodyA);
+      reach(bodyB);
+    }
+    return loaded;
   }
 
   /** Forgets what it kept of a joint that has been taken out. */

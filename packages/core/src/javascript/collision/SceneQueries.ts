@@ -29,6 +29,7 @@ export class SceneQueries {
   private awakeAtRefit = new Set<SolverBody>();
 
   constructor(
+    /** Every body that may move: static ones are refitted only when changed by hand. */
     private readonly bodies: () => readonly SolverBody[],
     private readonly stepCount: () => number,
   ) {}

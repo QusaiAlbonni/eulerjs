@@ -1,4 +1,4 @@
-import { IcosahedronGeometry, Vector3 } from 'three';
+import { IcosahedronGeometry, Quaternion, Vector3 } from 'three';
 import { Body, BoxCollider, ConvexCollider, JavaScriptBackend, MassProperties, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
 
 /**
@@ -97,6 +97,41 @@ export function boxStack(height: number, substeps?: number, canSleep = true): { 
     top = world.addBody(new Body({ massProperties: MassProperties.box(new Vector3(1, 1, 1), 10), position, canSleep, colliders: [new BoxCollider({ size: new Vector3(1, 1, 1) })] }));
   }
   return { world, top: top! };
+}
+
+/**
+ * A ring of `count` static walls, as a race track's are, each a box turned to follow the ring,
+ * and `sliding` boxes sliding round inside it, never sleeping: a scene of mostly still scenery.
+ */
+export function wallRing(count: number, sliding: number): World {
+  const world = groundedWorld();
+  const radius = 600;
+  for (let index = 0; index < count; index++) {
+    const angle = (index / count) * Math.PI * 2;
+    const ring = radius + (index % 2) * 30;
+    world.addBody(
+      new Body({
+        type: 'static',
+        position: new Vector3(Math.cos(angle) * ring, 0.55, Math.sin(angle) * ring),
+        quaternion: new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -angle),
+        colliders: [new BoxCollider({ size: new Vector3(1.2, 1.1, (2 * Math.PI * ring) / (count / 2) + 0.2) })],
+      }),
+    );
+  }
+  for (let index = 0; index < sliding; index++) {
+    const angle = (index / sliding) * Math.PI * 2;
+    const size = new Vector3(1, 1, 1);
+    world.addBody(
+      new Body({
+        massProperties: MassProperties.box(size, 10),
+        position: new Vector3(Math.cos(angle) * (radius + 15), 0.5, Math.sin(angle) * (radius + 15)),
+        velocity: new Vector3(-Math.sin(angle) * 8, 0, Math.cos(angle) * 8),
+        colliders: [new BoxCollider({ size })],
+        canSleep: false,
+      }),
+    );
+  }
+  return world;
 }
 
 export function runSeconds(world: World, seconds: number): void {

@@ -2,6 +2,7 @@ import { Quaternion, Vector3 } from 'three';
 import type { Body } from '../Body.js';
 import type { Collider } from '../colliders/Collider.js';
 import { RigidBodyState } from '../RigidBodyState.js';
+import type { PairSearchEntry } from './collision/CollisionSystem.js';
 import type { SubstepState } from './positional.js';
 
 /** A body that stays this close to one place, in metres and radians, counts as still. */
@@ -27,6 +28,8 @@ export class SolverBody extends RigidBodyState {
    * moved, changes shape or wakes.
    */
   boundsStale = true;
+  /** The collision system's entry for it, in its search for pairs that may touch. */
+  pairSearchEntry: PairSearchEntry | undefined;
   /** Goes up whenever the mass properties change, so copies of them know to refresh. */
   massVersion = 0;
   /** Bodies this one doesn't collide with, and how many joints say so. */

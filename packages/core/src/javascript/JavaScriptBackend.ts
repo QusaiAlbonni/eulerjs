@@ -38,6 +38,13 @@ export class JavaScriptBackend implements PhysicsBackend {
   private readonly solverBodies = new Map<Body, SolverBody>();
   /** The solver bodies in the order their bodies were added, which is the order they are solved in. */
   private bodyList: SolverBody[] = [];
+  /**
+   * The same but for static ones, in the same order: what moves, or may. A static body's state
+   * is brought up to date when it is added or moved by hand, and nothing in a step changes it, so
+   * the step's loops over bodies needn't visit it: with a great deal of still scenery, that is
+   * most of the bodies.
+   */
+  private movingList: SolverBody[] = [];
   private readonly constraints = new Map<Joint, Constraint>();
   /** The same constraints, in an array to go through quickly on every substep. */
   private constraintList: Constraint[] = [];
@@ -47,7 +54,7 @@ export class JavaScriptBackend implements PhysicsBackend {
   private readonly collisions = new CollisionSystem();
   private stepsTaken = 0;
   private readonly queries = new SceneQueries(
-    () => this.bodyList,
+    () => this.movingList,
     () => this.stepsTaken,
   );
   /** The soft-step solver, if this backend uses it rather than XPBD. */
@@ -70,7 +77,19 @@ export class JavaScriptBackend implements PhysicsBackend {
     const solverBody = new SolverBody(body);
     this.solverBodies.set(body, solverBody);
     this.bodyList.push(solverBody);
+    if (solverBody.type === 'static') this.settleStatic(solverBody);
+    else this.movingList.push(solverBody);
     this.queries.bodyChanged(solverBody);
+  }
+
+  /**
+   * Brings a static body's state up to date for the steps to come, as each step would otherwise
+   * do for it: its pose renormalised, the matrix and inertia it gives, and, for the position-based
+   * solver, where it is at the start of each substep.
+   */
+  private settleStatic(solverBody: SolverBody): void {
+    solverBody.updateDerivedState();
+    beginSubstep(solverBody);
   }
 
   removeBody(body: Body): void {
@@ -78,6 +97,7 @@ export class JavaScriptBackend implements PhysicsBackend {
     if (!solverBody) return;
     this.solverBodies.delete(body);
     this.bodyList = this.bodyList.filter((candidate) => candidate !== solverBody);
+    this.movingList = this.movingList.filter((candidate) => candidate !== solverBody);
     this.queries.bodyRemoved(solverBody);
   }
 
@@ -135,6 +155,7 @@ export class JavaScriptBackend implements PhysicsBackend {
   writePose(body: Body): void {
     const solverBody = this.solverBodyOf(body);
     solverBody.copyPoseFrom(body);
+    if (solverBody.type === 'static') this.settleStatic(solverBody);
     this.queries.bodyChanged(solverBody);
   }
 
@@ -152,6 +173,8 @@ export class JavaScriptBackend implements PhysicsBackend {
 
   applyLoads(body: Body, force: Vector3, torque: Vector3): void {
     const solverBody = this.solverBodyOf(body);
+    // nothing moves a static body
+    if (solverBody.type === 'static') return;
     solverBody.force.add(force);
     solverBody.torque.add(torque);
   }
@@ -183,27 +206,28 @@ export class JavaScriptBackend implements PhysicsBackend {
   step(settings: StepSettings): void {
     this.stepsTaken++;
     const { gravity, timestep } = settings;
-    for (const body of this.bodyList) body.updateDerivedState();
+    const moving = this.movingList;
+    for (const body of moving) body.updateDerivedState();
     const colliding = this.collisions.hasColliders(this.bodyList);
     if (!colliding) {
       this.collisions.sensorOverlaps = [];
       this.collisions.touchingPairs = [];
     }
     if (this.constraints.size === 0 && !colliding) {
-      for (const body of this.bodyList) integrateBody(body, gravity, timestep);
+      for (const body of moving) integrateBody(body, gravity, timestep);
     } else {
       // Everything that wakes this step does so before any contact is made: a contact works out
       // once, for the whole step, how easily each of its bodies moves.
       this.wakeJointPartners();
       if (colliding) this.collisions.findCandidatePairs(this.bodyList, timestep, 2 * settings.sleepSpeed, () => this.wakeJointPartners());
       if (this.softStep) {
-        this.softStep.step(this.bodyList, this.distanceJointBodies, this.sixDofJointBodies, colliding ? this.collisions.findManifolds() : [], settings);
+        this.softStep.step(moving, this.distanceJointBodies, this.sixDofJointBodies, colliding ? this.collisions.findManifolds() : [], settings);
       } else {
         if (colliding) this.collisions.detectContacts();
         this.runSubsteps(settings, colliding);
       }
     }
-    for (const body of this.bodyList) {
+    for (const body of moving) {
       body.clearForces();
       body.updateStillness(timestep, settings.sleepSpeed, settings.sleepSpin);
     }
@@ -213,6 +237,7 @@ export class JavaScriptBackend implements PhysicsBackend {
   dispose(): void {
     this.solverBodies.clear();
     this.bodyList = [];
+    this.movingList = [];
     this.constraints.clear();
     this.constraintList = [];
     this.distanceJointBodies.clear();
@@ -228,10 +253,10 @@ export class JavaScriptBackend implements PhysicsBackend {
    * would hold it down when it rose).
    */
   private putStillBodiesToSleep(timeToSleep: number): void {
-    if (!this.bodyList.some((body) => body.isReadyToSleep(timeToSleep))) return;
+    if (!this.movingList.some((body) => body.isReadyToSleep(timeToSleep))) return;
     const keptAwake = this.keptAwakeByContact();
     const groups = this.jointGroups();
-    for (const body of this.bodyList) {
+    for (const body of this.movingList) {
       if (!body.isReadyToSleep(timeToSleep) || keptAwake.has(body)) continue;
       const group = groups.get(body);
       if (!group) body.sleep();
@@ -299,14 +324,14 @@ export class JavaScriptBackend implements PhysicsBackend {
     const substep = settings.timestep / settings.substeps;
     const gravityStrength = settings.gravity.length();
     for (let substepIndex = 0; substepIndex < settings.substeps; substepIndex++) {
-      for (const body of this.bodyList) {
+      for (const body of this.movingList) {
         beginSubstep(body);
         integrateBody(body, settings.gravity, substep);
       }
       for (const constraint of this.constraintList) constraint.solvePositions(substep);
       // contacts last, so nothing a joint does leaves bodies inside each other
       if (colliding) this.collisions.solvePositions(substep);
-      for (const body of this.bodyList) deriveVelocitiesIfCorrected(body, substep);
+      for (const body of this.movingList) deriveVelocitiesIfCorrected(body, substep);
       for (const constraint of this.constraintList) constraint.solveVelocities?.(substep);
       if (colliding) this.collisions.solveVelocities(substep, gravityStrength);
     }

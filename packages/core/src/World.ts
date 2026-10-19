@@ -73,10 +73,13 @@ export class World implements StepSettings {
   private readonly jointList: Joint[] = [];
   /** For each body, the bodies it doesn't collide with because `setCollisionsBetween` said so. */
   private readonly noCollisions = new Map<Body, Set<Body>>();
-  /** Each body's motion as the backend last had it, to tell which ones you changed. */
-  private readonly syncedMotions = new Map<Body, SyncedMotion>();
-  /** The same, in the order of `bodyList`, to go through quickly. */
+  /** Each body's motion as the backend last had it, to tell which ones you changed: in the order of `bodyList`. */
   private readonly syncedList: SyncedMotion[] = [];
+  /**
+   * For each body in `bodyList`, 1 while this step leaves it be: a static body that nothing has
+   * moved, woken or put to sleep since the last step, which the backend already has as it is.
+   */
+  private leftBe = new Uint8Array(0);
   private readonly bodiesByObject = new Map<Object3D, Body>();
   private readonly bodiesByInstance = new Map<InstancedMesh, Map<number, Body>>();
   private readonly events = new EventHub();
@@ -253,9 +256,7 @@ export class World implements StepSettings {
     }
     this.backend.addBody(body);
     this.bodyList.push(body);
-    const synced = new SyncedMotion(body);
-    this.syncedMotions.set(body, synced);
-    this.syncedList.push(synced);
+    this.syncedList.push(new SyncedMotion(body));
     if (body.object) this.bodiesByObject.set(body.object, body);
     if (body.instance) {
       let byIndex = this.bodiesByInstance.get(body.instance.mesh);
@@ -285,7 +286,6 @@ export class World implements StepSettings {
     for (const other of [...(this.noCollisions.get(body) ?? [])]) this.setCollisionsBetween(body, other, true);
     this.bodyList.splice(index, 1);
     this.syncedList.splice(index, 1);
-    this.syncedMotions.delete(body);
     if (body.object) this.bodiesByObject.delete(body.object);
     if (body.instance) this.bodiesByInstance.get(body.instance.mesh)?.delete(body.instance.index);
     this.backend.removeBody(body);
@@ -374,23 +374,43 @@ export class World implements StepSettings {
    */
   fixedStep(): void {
     const timestep = this.timestep;
-    for (const body of this.bodyList) {
+    const bodies = this.bodyList;
+    const syncedList = this.syncedList;
+    if (this.leftBe.length < bodies.length) this.leftBe = new Uint8Array(Math.max(bodies.length, 2 * this.leftBe.length));
+    const leftBe = this.leftBe;
+    for (let index = 0; index < bodies.length; index++) {
+      const body = bodies[index]!;
+      const synced = syncedList[index]!;
+      // still scenery the step has nothing to do for, which is most of the bodies of many scenes
+      if (isUntouchedStatic(body, synced)) {
+        leftBe[index] = 1;
+        continue;
+      }
+      leftBe[index] = 0;
       // a sleeping body given a velocity by hand wakes up
       if (body.isSleeping && (body.velocity.lengthSq() > 0 || body.angularVelocity.lengthSq() > 0)) body.wakeUp();
       body.beginStep();
-      this.writeChanges(body);
+      this.writeChanges(body, synced);
     }
     for (const plugin of this.pluginList) plugin.beforeStep?.(this, timestep);
-    for (const body of this.bodyList) {
+    for (const body of bodies) {
       for (const behavior of body.behaviors) behavior.fixedUpdate(body, timestep, this);
     }
     for (const plugin of this.pluginList) plugin.applyForces?.(this, timestep);
-    for (const body of this.bodyList) {
-      this.writeChanges(body);
+    for (let index = 0; index < bodies.length; index++) {
+      const body = bodies[index]!;
+      const synced = syncedList[index]!;
+      if (leftBe[index] && !isUntouchedStatic(body, synced)) {
+        // moved since the step began, by a behaviour or a plugin: it began the step where it was
+        leftBe[index] = 0;
+        body.previousPosition.copy(synced.position);
+        body.previousQuaternion.copy(synced.quaternion);
+      }
+      if (!leftBe[index]) this.writeChanges(body, synced);
       this.writeLoads(body);
     }
     this.backend.step(this);
-    for (const body of this.bodyList) this.readResults(body);
+    for (let index = 0; index < bodies.length; index++) if (!leftBe[index]) this.readResults(bodies[index]!, syncedList[index]!);
     for (const joint of this.jointList.filter((candidate) => candidate.isOverloaded)) {
       const force = joint.force.length();
       const torque = joint.torque.length();
@@ -436,8 +456,7 @@ export class World implements StepSettings {
   }
 
   /** Passes on whatever about the body's motion and sleep has changed since the backend last had it. */
-  private writeChanges(body: Body): void {
-    const synced = this.syncedMotions.get(body)!;
+  private writeChanges(body: Body, synced: SyncedMotion): void {
     if (!synced.hasPoseOf(body)) this.backend.writePose(body);
     if (!synced.hasVelocityOf(body)) this.backend.writeVelocity(body);
     synced.copy(body);
@@ -452,11 +471,14 @@ export class World implements StepSettings {
     body.clearForces();
   }
 
-  private readResults(body: Body): void {
+  private readResults(body: Body, synced: SyncedMotion): void {
     this.backend.readMotion(body, body);
     body.setSleepState(this.backend.isSleeping(body));
     body.refreshAfterStep();
-    this.syncedMotions.get(body)!.copyRenormalized(body);
+    // A static body's pose is compared as it is, with nothing renormalising it from step to step,
+    // so that it stays the same, and is left be, until something moves it.
+    if (body.type === 'static') synced.copy(body);
+    else synced.copyRenormalized(body);
   }
 
   /** Moves every bound three.js object to its body's pose, interpolated between the last two steps. */
@@ -470,6 +492,11 @@ export class World implements StepSettings {
     for (const body of [...this.bodyList]) this.removeBody(body);
     this.backend.dispose?.();
   }
+}
+
+/** Whether `body` is static, and nothing has moved, woken or put it to sleep since the backend last had it. */
+function isUntouchedStatic(body: Body, synced: SyncedMotion): boolean {
+  return body.type === 'static' && !body.hasSleepRequest && synced.hasPoseOf(body) && synced.hasVelocityOf(body);
 }
 
 /** A copy of a body's motion as the backend has it. */
@@ -498,7 +525,16 @@ class SyncedMotion implements BodyMotion {
   }
 
   hasVelocityOf(motion: BodyMotion): boolean {
-    return this.velocity.equals(motion.velocity) && this.angularVelocity.equals(motion.angularVelocity);
+    const velocity = motion.velocity;
+    const angularVelocity = motion.angularVelocity;
+    return (
+      this.velocity.x === velocity.x &&
+      this.velocity.y === velocity.y &&
+      this.velocity.z === velocity.z &&
+      this.angularVelocity.x === angularVelocity.x &&
+      this.angularVelocity.y === angularVelocity.y &&
+      this.angularVelocity.z === angularVelocity.z
+    );
   }
 
   copyPose(motion: BodyMotion): void {
