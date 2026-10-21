@@ -1,9 +1,13 @@
 import { MathUtils, Vector3 } from 'three';
 import type { Object3D, PerspectiveCamera } from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SPECIFICATION } from '../car/specification.js';
 
-/** The views to cycle through: behind the car, the T-cam over the airbox, and the driver's eyes. */
-export type CameraMode = 'chase' | 'tcam' | 'cockpit';
+/**
+ * The views to cycle through: behind the car, the T-cam over the airbox, and the driver's eyes;
+ * and, on its own key, inspecting the car: walking round it with the mouse.
+ */
+export type CameraMode = 'chase' | 'tcam' | 'cockpit' | 'inspect';
 const MODES: readonly CameraMode[] = ['chase', 'tcam', 'cockpit'];
 
 /** Each view's field of view at a standstill, in degrees, and the few more it widens to flat out: a touch, not a stretch. */
@@ -11,6 +15,7 @@ const FIELD_OF_VIEW: Record<CameraMode, { still: number; flatOut: number }> = {
   chase: { still: 58, flatOut: 63 },
   tcam: { still: 64, flatOut: 68 },
   cockpit: { still: 68, flatOut: 71 },
+  inspect: { still: 40, flatOut: 40 },
 };
 /** The speed the field of view has widened fully at, in m/s: about 330 km/h. */
 const FLAT_OUT = 92;
@@ -27,12 +32,18 @@ const HEAD_PUSH = 0.025;
 
 const GROUND = -SPECIFICATION.centerOfMassHeight;
 /** Where the fixed views sit, in the car's frame, and a point they look toward. */
-const MOUNTS: Record<'tcam' | 'cockpit', { eye: Vector3; lookAt: Vector3 }> = {
+export const MOUNTS: Record<'tcam' | 'cockpit', { eye: Vector3; lookAt: Vector3 }> = {
   tcam: { eye: new Vector3(0, GROUND + 1.18, -0.25), lookAt: new Vector3(0, GROUND + 0.9, 8) },
-  cockpit: { eye: new Vector3(0, GROUND + 0.8, 0.12), lookAt: new Vector3(0, GROUND + 0.6, 10) },
+  cockpit: { eye: new Vector3(0, GROUND + 0.8, 0.4), lookAt: new Vector3(0, GROUND + 0.6, 10) },
 };
 
+/** Where inspecting starts from, in the car's frame: ahead of it and off to its left, a little above. */
+const INSPECTION_START = new Vector3(3.4, 1.3, 4.4);
+/** How near and far the view may come to the car's centre when inspecting it, in metres. */
+const INSPECTION_RANGE = { nearest: 1.6, furthest: 16 };
+
 const ahead = new Vector3();
+const carMoved = new Vector3();
 const backward = new Vector3();
 const wanted = new Vector3();
 const forward = new Vector3();
@@ -58,15 +69,54 @@ export class Cameras {
   private push = 0;
   private pushRate = 0;
   private lastSpeed: number | undefined;
+  /** Inspecting: the mouse's orbit round the car, the view to go back to, and where the car was last frame, to follow it. */
+  private readonly orbit: OrbitControls;
+  private drivingMode: CameraMode = 'chase';
+  private readonly lastCarPosition = new Vector3();
 
-  constructor(camera: PerspectiveCamera, car: Object3D) {
+  /** `canvas`: what the mouse drags on to look round the car when inspecting it; without one, the inspecting view stays where it starts. */
+  constructor(camera: PerspectiveCamera, car: Object3D, canvas?: HTMLElement) {
     this.camera = camera;
     this.car = car;
+    this.orbit = new OrbitControls(camera, canvas ?? null);
+    this.orbit.enabled = false;
+    this.orbit.enableDamping = true;
+    // round the car, not off along the track: no panning, and never below the ground
+    this.orbit.enablePan = false;
+    this.orbit.minDistance = INSPECTION_RANGE.nearest;
+    this.orbit.maxDistance = INSPECTION_RANGE.furthest;
+    this.orbit.maxPolarAngle = Math.PI * 0.495;
   }
 
+  /** The next of the driving views; from inspecting, back to the one before it. */
   next(): void {
+    if (this.mode === 'inspect') {
+      this.inspect();
+      return;
+    }
     this.mode = MODES[(MODES.indexOf(this.mode) + 1) % MODES.length]!;
     this.settled = false;
+  }
+
+  /** Starts inspecting the car, the view orbiting it as the mouse drags and zooming with the wheel; or, inspecting, stops. */
+  inspect(): void {
+    if (this.mode === 'inspect') {
+      this.mode = this.drivingMode;
+      this.orbit.enabled = false;
+      this.settled = false;
+      return;
+    }
+    this.drivingMode = this.mode;
+    this.mode = 'inspect';
+    this.orbit.enabled = true;
+    // from ahead and to the side, level however the car pitches and rolls
+    forward.set(0, 0, 1).applyQuaternion(this.car.quaternion).setY(0).normalize();
+    const heading = Math.atan2(forward.x, forward.z);
+    this.camera.position.copy(INSPECTION_START).applyAxisAngle(new Vector3(0, 1, 0), heading).add(this.car.position);
+    this.camera.up.set(0, 1, 0);
+    this.orbit.target.copy(this.car.position);
+    this.lastCarPosition.copy(this.car.position);
+    this.orbit.update();
   }
 
   update(frameDelta: number, speed: number): void {
@@ -74,7 +124,14 @@ export class Cameras {
     this.feelAcceleration(frameDelta, speed);
     // forward along the car, level, and the push's share of a drop back along it
     backward.set(0, 0, -1).applyQuaternion(car.quaternion).setY(0).normalize();
-    if (this.mode === 'chase') {
+    if (this.mode === 'inspect') {
+      // the view goes along with the car, so that it can be driven and looked at together
+      carMoved.subVectors(car.position, this.lastCarPosition);
+      this.lastCarPosition.copy(car.position);
+      this.camera.position.add(carMoved);
+      this.orbit.target.add(carMoved);
+      this.orbit.update(frameDelta);
+    } else if (this.mode === 'chase') {
       // behind the car along where it points, level however it pitches and rolls
       forward.set(0, 0, 1).applyQuaternion(car.quaternion).setY(0).normalize();
       wanted.copy(forward).multiplyScalar(-6.2).setY(1.55);

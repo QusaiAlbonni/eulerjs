@@ -1,7 +1,7 @@
 import { Quaternion, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import { Body, BoxCollider, MassProperties, SphereCollider } from '@eulerjs/core';
-import type { Behavior, World } from '@eulerjs/core';
+import type { Behavior, Collider, World } from '@eulerjs/core';
 import { RaycastVehicle } from '@eulerjs/vehicle';
 import type { GroundSurface, Wheel, WheelOptions } from '@eulerjs/vehicle';
 import { Aerodynamics } from './Aerodynamics.js';
@@ -44,7 +44,7 @@ const frontAxleZ = SPECIFICATION.wheelbase * (1 - SPECIFICATION.frontWeightShare
 const rearAxleZ = -SPECIFICATION.wheelbase * SPECIFICATION.frontWeightShare;
 
 /** Where each wheel's suspension is mounted, so that standing still the car's weight sets it at its ride height. */
-function wheelOptions(): WheelOptions[] {
+export function wheelOptions(): WheelOptions[] {
   // the wheels' centres stand a wheel's radius off the ground, the centre of mass at its height
   const wheelCenterY = wheelSpecification.radius - SPECIFICATION.centerOfMassHeight;
   const axle = (along: number, track: number, stiffness: number, damping: number, inertia: number, weightShare: number, grip: number): WheelOptions[] => {
@@ -72,6 +72,23 @@ function wheelOptions(): WheelOptions[] {
   ];
 }
 
+/** The collision group the cars are in: the track and everything by it are in the default, group 1. */
+export const CAR_GROUP = 2;
+
+/**
+ * The car's shape for collisions: as its own body has it, and, `onlyCars`, as another player's
+ * car does, which touches no track or wall, its own player's world seeing to those, only cars.
+ */
+export function carColliders(onlyCars = false): Collider[] {
+  const groups = { collisionGroups: CAR_GROUP, ...(onlyCars ? { collidesWith: CAR_GROUP } : {}) };
+  // the floor, a few centimetres off the ground, and the body up to the cockpit
+  const floor = new BoxCollider({ size: new Vector3(1.4, 0.3, 4.8), offset: new Vector3(0, -SPECIFICATION.centerOfMassHeight + 0.05 + 0.15, 0.25), friction: 0.4, ...groups });
+  // and a ball in each wheel, smaller than it so as never to touch the ground: the wheels stand
+  // out beyond the floor, and would go through a wall that the floor didn't reach
+  const wheels = wheelOptions().map((wheel) => new SphereCollider({ radius: 0.24, offset: new Vector3(wheel.mount.x, wheelSpecification.radius - SPECIFICATION.centerOfMassHeight, wheel.mount.z), friction: 0.3, ...groups }));
+  return [floor, ...wheels];
+}
+
 /**
  * A Formula 1 car: one body on four slip-tyred wheels, its engine driving the rear ones through
  * an eight-speed gearbox and a limited-slip differential, the air pressing it down and holding it
@@ -93,18 +110,13 @@ export class F1Car implements Behavior {
   /** `surface`: what the ground is like where each wheel touches it, as `RaycastVehicleOptions.surface`. */
   constructor(world: World, object: Object3D, position: Vector3, heading = 0, surface?: (point: Vector3) => GroundSurface) {
     const size = SPECIFICATION.inertiaBox;
-    // the floor, a few centimetres off the ground, and the body up to the cockpit
-    const floor = new BoxCollider({ size: new Vector3(1.4, 0.3, 4.8), offset: new Vector3(0, -SPECIFICATION.centerOfMassHeight + 0.05 + 0.15, 0.25), friction: 0.4 });
-    // and a ball in each wheel, smaller than it so as never to touch the ground: the wheels stand
-    // out beyond the floor, and would go through a wall that the floor didn't reach
-    const wheels = wheelOptions().map((wheel) => new SphereCollider({ radius: 0.24, offset: new Vector3(wheel.mount.x, wheelSpecification.radius - SPECIFICATION.centerOfMassHeight, wheel.mount.z), friction: 0.3 }));
     this.body = world.addBody(
       new Body({
         object,
         massProperties: MassProperties.box(new Vector3(size.width, size.height, size.length), SPECIFICATION.mass),
         position: new Vector3(position.x, position.y + SPECIFICATION.centerOfMassHeight, position.z),
         quaternion: new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), heading),
-        colliders: [floor, ...wheels],
+        colliders: carColliders(),
         canSleep: false,
       }),
     );

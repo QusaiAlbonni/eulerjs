@@ -460,7 +460,7 @@ Four complete games are built only on the public API:
 npm install
 npm run dev           # the sailboat example on http://localhost:5173
 npm run dev:city      # the city driving example
-npm run dev:f1        # the F1 car at Monza
+npm run dev:f1        # the formula car at Monza
 npm test              # all tests
 npm run coverage      # tests with coverage thresholds (90% lines)
 npm run check         # lint, typecheck, coverage and build, as CI does

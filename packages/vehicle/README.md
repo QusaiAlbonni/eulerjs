@@ -40,7 +40,7 @@ like where each wheel touches it, its grip, its drag and its height, so that ker
 gravel can all be one flat collider.
 
 The engine, gears, steering feel and air drag are yours: [the city example](https://qusaialbonni.github.io/eulerjs/examples/city/)
-builds a hatchback on it, and [the F1 example](https://qusaialbonni.github.io/eulerjs/examples/f1/)
+builds a hatchback on it, and [the formula car example](https://qusaialbonni.github.io/eulerjs/examples/f1/)
 a Formula 1 car on slip tyres. Needs three 0.166 or later. See the [guide](https://qusaialbonni.github.io/eulerjs/vehicle).
 
 MIT licensed.

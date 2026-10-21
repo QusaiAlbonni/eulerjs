@@ -299,7 +299,7 @@ on the chassis (a drag area of 0.65 m²), and R to set the car back on its wheel
 wheel on a strut placed at `mount.y - suspensionLength + compression` under its mount, turned by
 `steerAngle`, with the tyre spinning by `spinAngle`.
 
-## The F1 car
+## The formula car
 
 `examples/f1` races a Formula 1 car round Monza on slip tyres. Its numbers are in
 [`specification.ts`](https://github.com/QusaiAlbonni/eulerjs/blob/main/examples/f1/src/car/specification.ts):
@@ -341,4 +341,4 @@ took about 4.5 ms a step, wheels, chassis contacts and all.
 - [Bodies](/guide/bodies): behaviours, mass properties and sleeping
 - [Colliders](/guide/colliders): the ground the wheels find
 - [Triangle meshes](/bvh): roads and levels as `MeshCollider`s
-- [Examples](/examples/): the city, and the F1 car
+- [Examples](/examples/): the city, and the formula car

@@ -3,11 +3,13 @@ import type { DriverInput } from '../car/F1Car.js';
 /** What the controls do besides driving, once each press. */
 export interface ControlActions {
   camera(): void;
+  inspect(): void;
   reset(): void;
   assists(): void;
   gearbox(): void;
   sound(): void;
-  help(): void;
+  /** Opens and closes the menu. */
+  menu(): void;
 }
 
 /** How fast the keys move the pedals and the steering, in full travels a second. */
@@ -34,22 +36,38 @@ export class DriverControls {
   private readonly actions: ControlActions;
   private readonly input: DriverInput;
   private readonly padPressed = new Set<number>();
+  private keysDrive = true;
+
+  /** Whether the keys drive the car; not while the menu is open, and the keys held then let go. */
+  get listening(): boolean {
+    return this.keysDrive;
+  }
+
+  set listening(listening: boolean) {
+    this.keysDrive = listening;
+    if (!listening) this.held.clear();
+  }
 
   constructor(input: DriverInput, actions: ControlActions) {
     this.input = input;
     this.actions = actions;
     window.addEventListener('keydown', (event) => {
+      // typing a room's code, not driving
+      if (event.target instanceof HTMLInputElement) return;
+      if (event.code === 'Escape' && !event.repeat) actions.menu();
+      // with the menu open, the keys are the menu's
+      if (!this.listening) return;
       this.held.add(event.code);
       if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault();
       if (event.repeat) return;
       if (event.code === 'KeyE' || event.code === 'ShiftRight') input.shiftUp = true;
       if (event.code === 'KeyQ' || event.code === 'ControlRight') input.shiftDown = true;
       if (event.code === 'KeyC') actions.camera();
+      if (event.code === 'KeyI') actions.inspect();
       if (event.code === 'KeyR') actions.reset();
       if (event.code === 'KeyT') actions.assists();
       if (event.code === 'KeyM') actions.gearbox();
       if (event.code === 'KeyN') actions.sound();
-      if (event.code === 'KeyH') actions.help();
     });
     window.addEventListener('keyup', (event) => this.held.delete(event.code));
     window.addEventListener('blur', () => this.held.clear());
@@ -92,7 +110,7 @@ export class DriverControls {
     if (pressedNow(PAD.rightBumper)) input.shiftUp = true;
     if (pressedNow(PAD.leftBumper)) input.shiftDown = true;
     if (pressedNow(PAD.y)) this.actions.camera();
-    if (pressedNow(PAD.start)) this.actions.reset();
+    if (pressedNow(PAD.start)) this.actions.menu();
     if (pressedNow(PAD.back)) this.actions.assists();
     if (pressedNow(PAD.b)) this.actions.gearbox();
     if (pressedNow(PAD.x)) this.actions.sound();

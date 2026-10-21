@@ -43,12 +43,12 @@ export const GAMES: Example[] = [
   },
   {
     id: 'f1',
-    title: 'F1 at Monza',
+    title: 'Formula car at Monza',
     description: 'A time trial in a Formula 1 car round Monza, the circuit laid out from OpenStreetMap: slip tyres, downforce, DRS, a seamless gearbox, kerbs and grass to bounce over, and an engine you hear simulated, after engine-sim.',
     path: 'examples/f1/',
     source: tree('examples/f1'),
     tags: ['vehicle', 'slip tyres', 'aerodynamics', 'engine sound', 'worker'],
-    controls: 'W/S throttle and brake · A/D steer · E/Q shift · Space DRS · T traction control · C camera · N sound · R back to the grid',
+    controls: 'W/S throttle and brake · A/D steer · E/Q shift · Space DRS · T traction control · C camera · I inspect the car · N sound · R back to the grid · Esc menu',
   },
   {
     id: 'wedding',

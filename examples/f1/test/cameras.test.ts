@@ -30,4 +30,26 @@ describe('the cameras', () => {
     expect(pulling - steady).toBeLessThan(0.5);
     expect(braking).toBeLessThan(steady - 0.15);
   });
+
+  it('inspect the car from where it is, go along with it, and give back the view it came from', () => {
+    const camera = new PerspectiveCamera();
+    const car = new Object3D();
+    car.position.set(100, 0.28, -40);
+    const cameras = new Cameras(camera, car);
+    cameras.next();
+    cameras.inspect();
+    expect(cameras.mode).toBe('inspect');
+    const fromCar = camera.position.clone().sub(car.position);
+    expect(fromCar.length()).toBeGreaterThan(4);
+    expect(fromCar.length()).toBeLessThan(8);
+    // the car drives off: the view keeps its place round it
+    const frame = 1 / 60;
+    for (let step = 0; step < 120; step++) {
+      car.position.z += 30 * frame;
+      cameras.update(frame, 30);
+    }
+    expect(camera.position.clone().sub(car.position).distanceTo(fromCar)).toBeLessThan(1e-6);
+    cameras.inspect();
+    expect(cameras.mode).toBe('tcam');
+  });
 });
