@@ -100,7 +100,7 @@ class WheelModel {
 }
 
 /** A soft dark patch under the car, where the sky's light can't reach: its shadow from above, always there. */
-function contactShadow(): Mesh {
+export function contactShadow(): Mesh {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 128;
   const context = canvas.getContext('2d')!;
