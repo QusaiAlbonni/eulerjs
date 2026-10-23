@@ -29,9 +29,9 @@ const barrelGeometry = new CylinderGeometry(0.4, 0.4, 1, 24);
 const coneGeometry = new ConeGeometry(0.35, 0.8, 20);
 const ballGeometry = new SphereGeometry(0.35, 20, 12);
 const kinds: [Mesh['geometry'], number, () => Collider][] = [
-  [barrelGeometry, 0x5e81ac, () => new CylinderCollider({ radius: 0.4, height: 1, friction: 0.7, rollingResistance: 0.02 })],
+  [barrelGeometry, 0x5e81ac, () => new CylinderCollider({ radius: 0.4, height: 1, friction: 0.7 })],
   [coneGeometry, 0xd08770, () => new ConeCollider({ radius: 0.35, height: 0.8, friction: 0.7 })],
-  [ballGeometry, 0xebcb8b, () => new SphereCollider({ radius: 0.35, friction: 0.7, rollingResistance: 0.02 })],
+  [ballGeometry, 0xebcb8b, () => new SphereCollider({ radius: 0.35, friction: 0.7 })],
 ];
 let dropped = 0;
 let sinceDrop = 0;

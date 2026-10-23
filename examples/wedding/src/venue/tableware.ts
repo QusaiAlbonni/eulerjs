@@ -20,7 +20,7 @@ export function addPlates(venue: Venue, spots: readonly Vector3[]): Body[] {
     geometry: plateGeometry,
     material: materials.porcelain,
     placements: spots.map((spot) => ({ position: spot.clone().setY(spot.y + PLATE.height / 2), quaternion: unturned })),
-    colliders: () => [new CylinderCollider({ radius: PLATE.radius, height: PLATE.height, friction: 0.4, rollingResistance: 0.02 })],
+    colliders: () => [new CylinderCollider({ radius: PLATE.radius, height: PLATE.height, friction: 0.4 })],
     mass: 0.5,
   });
 }
@@ -37,7 +37,7 @@ const glassGeometry = merged(
 );
 const champagneGeometry = cylinderAt(GLASS.radius * 0.62, 0.06, new Vector3(0, 0.04, 0), 12, GLASS.radius * 0.85);
 
-const glassColliders = () => [new CylinderCollider({ radius: GLASS.radius, height: GLASS.height, friction: 0.5, rollingResistance: 0.02 })];
+const glassColliders = () => [new CylinderCollider({ radius: GLASS.radius, height: GLASS.height, friction: 0.5 })];
 
 /** Empty flutes set down at `spots`, drawn as one InstancedMesh. */
 export function addGlasses(venue: Venue, spots: readonly Vector3[]): Body[] {
@@ -63,7 +63,7 @@ export function addBottle(venue: Venue, position: Vector3): Body {
   object.add(shaded(bottleGeometry, materials.bottle), shaded(bottleFoil, materials.gold));
   return addProp(venue, {
     object,
-    colliders: [new CylinderCollider({ radius: BOTTLE.radius, height: BOTTLE.height, friction: 0.5, rollingResistance: 0.02 })],
+    colliders: [new CylinderCollider({ radius: BOTTLE.radius, height: BOTTLE.height, friction: 0.5 })],
     mass: 1.4,
     position: position.clone().setY(position.y + BOTTLE.height / 2),
   });
@@ -86,7 +86,7 @@ export function addVase(venue: Venue, position: Vector3, colorIndex: number): Bo
   }
   return addProp(venue, {
     object,
-    colliders: [new CylinderCollider({ radius: VASE.radius, height: VASE.height, friction: 0.5, rollingResistance: 0.02 })],
+    colliders: [new CylinderCollider({ radius: VASE.radius, height: VASE.height, friction: 0.5 })],
     mass: 1.8,
     position: position.clone().setY(position.y + VASE.height / 2),
   });
