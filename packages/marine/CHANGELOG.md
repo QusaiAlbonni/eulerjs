@@ -1,5 +1,12 @@
 # @eulerjs/marine
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a), [`5a320c7`](https://github.com/QusaiAlbonni/eulerjs/commit/5a320c738920361ece86413f9512b92b69c1fe5a)]:
+  - @eulerjs/core@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

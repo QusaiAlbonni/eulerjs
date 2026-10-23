@@ -1,6 +1,6 @@
 {
   "name": "@eulerjs/bvh",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Triangle mesh colliders for eulerjs, on three-mesh-bvh",
   "type": "module",
   "license": "MIT",
@@ -38,7 +38,7 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "@eulerjs/core": "^0.1.0",
+    "@eulerjs/core": "^0.2.0",
     "three": ">=0.166.0",
     "three-mesh-bvh": ">=0.9.0"
   },
