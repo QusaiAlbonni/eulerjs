@@ -122,16 +122,14 @@ the ragdolls' joints and limits matched by its cone-twist and hinge constraints:
 
 | Crowd | eulerjs soft step | eulerjs XPBD | cannon-es |
 | --- | ---: | ---: | ---: |
-| none (52 props) | 4 ms | 6 ms | 121 ms |
-| 25 people (327 bodies) | 444 ms | 496 ms | 722 ms |
-| 50 people (602 bodies) | 1026 ms | 1164 ms | 1375 ms |
-| 100 people (1152 bodies) | 2282 ms | 2635 ms | 2771 ms |
+| none (52 props) | 4 ms | 6 ms | 118 ms |
+| 25 people (327 bodies) | 352 ms | 403 ms | 652 ms |
+| 50 people (602 bodies) | 810 ms | 1178 ms | 1333 ms |
+| 100 people (1152 bodies) | 1996 ms | 2327 ms | 2800 ms |
 
 The eulerjs walkers are driven by their joints' drives, which cost more than the forces that
 pull the cannon-es ones along (cannon-es has no joint drives); their joints open up by 15 mm at
-most under soft step, 6 mm under XPBD, and cannon-es's by 5 mm. The rows with people were
-measured before eulerjs stopped visiting still bodies every step, which makes no measurable
-difference to a crowd this awake.
+most under soft step, 6 mm under XPBD, and cannon-es's by 5 mm.
 
 Static scenery costs next to nothing until something reaches it: static bodies are kept in a
 tree of their bounds, so finding what touches them costs only for the bodies that move, and the
@@ -143,11 +141,11 @@ And for accuracy (0, or the stated value, is perfect):
 
 | | eulerjs | cannon-es |
 | --- | ---: | ---: |
-| Top of a 3-box stack kept awake, furthest it moves in 60 s | 0.7 mm | 2.7 m (falls) |
-| Top of a 5-box stack kept awake, furthest it moves in 60 s | 7.2 mm | 6.4 m (falls) |
-| Top of an 8-box stack kept awake, furthest it moves in 60 s | 11.8 mm | 9.5 m (falls) |
+| Top of a 3-box stack kept awake, furthest it moves in 60 s | 0.4 mm | 2.7 m (falls) |
+| Top of a 5-box stack kept awake, furthest it moves in 60 s | 1.1 mm | 6.1 m (falls) |
+| Top of an 8-box stack kept awake, furthest it moves in 60 s | 2.5 mm | 9.5 m (falls) |
 | Box sliding down a slope, acceleration error | 0.0% | −100% (stuck) |
-| Ball bounced from 3 m, height error | −1.8% | +13.1% |
+| Ball bounced from 3 m, height error | −1.8% | +21.6% |
 | A rock's moment of inertia (9.14 is right) | 9.14 | 66.7 |
 | A box resting on the ground, how far it sinks | 0.07 mm | 0.00 mm |
 

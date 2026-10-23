@@ -28,15 +28,15 @@ lists what is still to come.
 ## Why eulerjs
 
 **It gets the physics right.** A stack of boxes stands: kept awake for a minute, the top of an
-eight-box stack moves 12 mm at most, where cannon-es's falls over. A box on a slope slides at the
+eight-box stack moves 2.5 mm at most, where cannon-es's falls over. A box on a slope slides at the
 acceleration the textbook gives, to the decimal; in cannon-es it doesn't slide at all. A ball
 bounces back to the height its restitution says, within 2%. A rock's inertia is integrated from
 its hull, not guessed from its bounding box, which cannon-es gets seven times too large.
 
 **It's fast where it counts.** Real scenes are mostly at rest, and eulerjs puts what's at rest to
 sleep and keeps it asleep, and still scenery costs next to nothing: a settled pile of boxes costs
-a sixtieth of cannon-es's, a city full of props a thirtieth. Convex hulls collide eight times
-faster. And with a crowd of ragdolls all awake and walking, it is still the faster of the two.
+a fortieth of cannon-es's, a city full of props a thirtieth. Convex hulls collide nearly ninety
+times faster. And with a crowd of ragdolls all awake and walking, it is still the faster of the two.
 
 **It's three.js through and through.** Give it a mesh and it works out the body: mass, centre of
 mass, inertia, colliders. It moves your meshes for you, interpolated between fixed steps, and
@@ -46,39 +46,41 @@ cars and triangle meshes.
 
 ### Against cannon-es
 
-The same scenes in both engines, at 60 steps a second, with the same friction, pair finding and
-sleep thresholds; each engine keeps its own solver defaults (eulerjs soft step with 4 substeps,
-cannon-es 10 Gauss-Seidel iterations). Milliseconds of computing per simulated second, on a Ryzen 5
-4600H in Node 24: lower is better. From `npm run bench` (`packages/core/bench/cannon.test.ts`,
-`examples/city/bench/cannon.test.ts`).
+The same scenes in both engines, at 60 steps a second, with the same masses, friction and sleep
+thresholds, no damping and no rolling resistance; each engine keeps its own solver defaults (eulerjs
+soft step with 4 substeps, cannon-es 10 Gauss-Seidel iterations). Milliseconds of computing per
+simulated second, on a Ryzen 5 4600H in Node 24: lower is better. From `npm run bench`
+(`packages/core/bench/standard.test.ts`, `packages/core/bench/rapier.test.ts`,
+`examples/city/bench/cannon.test.ts`); the [performance guide](https://qusaialbonni.github.io/eulerjs/guide/performance)
+sets Rapier beside them too.
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| 125 boxes falling into a pile | 235 ms | 259 ms | eulerjs 1.1× faster |
-| 125 boxes in a pile, never sleeping | 233 ms | 255 ms | eulerjs 1.1× faster |
-| 125 boxes settled, same sleep thresholds | 4 ms | 246 ms | **eulerjs 59× faster** |
-| 400 spheres spread out, never sleeping | 127 ms | 130 ms | about even |
-| 400 spheres, same sleep thresholds | 15 ms | 66 ms | eulerjs 4.3× faster |
-| 64 rocks (42-corner hulls), never sleeping | 752 ms | 6168 ms | **eulerjs 8× faster** |
-| The city, at rest (52 props) | 4 ms | 121 ms | **eulerjs 30× faster** |
-| The city, 25 ragdolls walking (327 bodies) | 444 ms | 722 ms | eulerjs 1.6× faster |
-| The city, 100 ragdolls walking (1152 bodies) | 2282 ms | 2771 ms | eulerjs 1.2× faster |
+| Pyramid of 1,015 boxes, standing | 3979 ms | 12594 ms | eulerjs 3.2× faster |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | 647 ms | 8269 ms | **eulerjs 12.8× faster** |
+| 5,000 rays a step through 2,000 still shapes | 1862 ms | 29285 ms | **eulerjs 15.7× faster** |
+| 125 boxes falling into a pile | 107 ms | 234 ms | eulerjs 2.2× faster |
+| 125 boxes in a pile, never sleeping | 105 ms | 220 ms | eulerjs 2.1× faster |
+| 125 boxes settled, same sleep thresholds | 5 ms | 206 ms | **eulerjs 41× faster** |
+| 400 spheres spread out, never sleeping | 75 ms | 101 ms | eulerjs 1.3× faster |
+| 400 spheres, same sleep thresholds | 13 ms | 58 ms | eulerjs 4.5× faster |
+| 64 rocks (42-corner hulls), never sleeping | 69 ms | 6079 ms | **eulerjs 88× faster** |
+| The city, at rest (52 props) | 4 ms | 118 ms | **eulerjs 30× faster** |
+| The city, 25 ragdolls walking (327 bodies) | 352 ms | 652 ms | eulerjs 1.9× faster |
+| The city, 100 ragdolls walking (1152 bodies) | 1996 ms | 2800 ms | eulerjs 1.4× faster |
 
 | Accuracy (0 or the stated value is perfect) | eulerjs | cannon-es |
 | --- | ---: | ---: |
-| Top of a 3-box stack kept awake, furthest it moves in 60 s | 0.7 mm | 2.7 m (falls) |
-| Top of an 8-box stack kept awake, furthest it moves in 60 s | 11.8 mm | 9.5 m (falls) |
+| Top of a 3-box stack kept awake, furthest it moves in 60 s | 0.4 mm | 2.7 m (falls) |
+| Top of an 8-box stack kept awake, furthest it moves in 60 s | 2.5 mm | 9.5 m (falls) |
 | Box sliding down a slope, acceleration error | 0.0% | −100% (stuck) |
-| Ball bounced from 3 m, height error | −1.8% | +13.1% |
+| Ball bounced from 3 m, height error | −1.8% | +21.6% |
 | A rock's moment of inertia (9.14 is right) | 9.14 | 66.7 |
 | A box resting on the ground, how far it sinks | 0.07 mm | 0.00 mm |
 
 Where cannon-es wins: its boxes rest exactly on the ground where eulerjs's sink by 0.07 mm, and
 in the city its ragdolls' joints open up less (5 mm against 15 at most), though they have no
-drives to walk with; a field of awake spheres, the simplest contacts there are, costs the two
-about the same. The rows with ragdolls were measured before eulerjs stopped visiting still bodies
-on every step, which makes no measurable difference to scenes this awake. Timings depend on the
-machine, so measure your own scenes too: `npm run bench`.
+drives to walk with. Timings depend on the machine, so measure your own scenes too: `npm run bench`.
 
 ## Packages
 

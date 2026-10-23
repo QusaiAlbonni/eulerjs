@@ -60,16 +60,16 @@ Faster than cannon-es where real scenes spend their time, and right where cannon
 
 <div class="stats">
   <div class="stat">
-    <div class="number">59×</div>
+    <div class="number">41×</div>
     <div class="label">faster than cannon-es on a settled pile of boxes: what's at rest sleeps, and stays asleep</div>
   </div>
   <div class="stat">
-    <div class="number">8×</div>
+    <div class="number">88×</div>
     <div class="label">faster with convex hulls: 64 tumbling rocks of 42 corners each</div>
   </div>
   <div class="stat">
-    <div class="number">0.7 mm</div>
-    <div class="label">how far a three-box stack's top moves in a minute awake; cannon-es's falls over</div>
+    <div class="number">2.5 mm</div>
+    <div class="label">how far an eight-box stack's top moves in a minute awake; cannon-es's falls over</div>
   </div>
   <div class="stat">
     <div class="number">0.0%</div>
@@ -86,27 +86,29 @@ and through:** give it a mesh and it works out the body.
 
 ### Against cannon-es
 
-The same scenes in both engines, at 60 steps a second, with the same friction, pair finding and
-sleep thresholds; each keeps its own solver defaults. Milliseconds of computing per simulated
-second on a Ryzen 5 4600H, lower is better.
+The same scenes in both engines, at 60 steps a second, with the same masses, friction and sleep
+thresholds; each keeps its own solver defaults. Milliseconds of computing per simulated second on
+a Ryzen 5 4600H, lower is better.
 
 <div class="comparison">
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| 125 boxes settled | **4 ms** | 246 ms | eulerjs 59× faster |
-| 64 rocks (42-corner hulls) | **752 ms** | 6168 ms | eulerjs 8× faster |
-| The city at rest | **4 ms** | 121 ms | eulerjs 30× faster |
-| The city, 25 ragdolls walking | **444 ms** | 722 ms | eulerjs 1.6× faster |
-| The city, 100 ragdolls walking | **2282 ms** | 2771 ms | eulerjs 1.2× faster |
-| 125 boxes falling into a pile | **235 ms** | 259 ms | eulerjs 1.1× faster |
-| 400 spheres, never sleeping | 127 ms | 130 ms | about even |
+| 125 boxes settled | **5 ms** | 206 ms | eulerjs 41× faster |
+| 64 rocks (42-corner hulls) | **69 ms** | 6079 ms | eulerjs 88× faster |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | **647 ms** | 8269 ms | eulerjs 12.8× faster |
+| Pyramid of 1,015 boxes | **3979 ms** | 12594 ms | eulerjs 3.2× faster |
+| 125 boxes falling into a pile | **107 ms** | 234 ms | eulerjs 2.2× faster |
+| 400 spheres, never sleeping | **75 ms** | 101 ms | eulerjs 1.3× faster |
+| The city at rest | **4 ms** | 118 ms | eulerjs 30× faster |
+| The city, 25 ragdolls walking | **352 ms** | 652 ms | eulerjs 1.9× faster |
+| The city, 100 ragdolls walking | **1996 ms** | 2800 ms | eulerjs 1.4× faster |
 
 | Accuracy | eulerjs | cannon-es |
 | --- | ---: | ---: |
-| 8-box stack kept awake, top's furthest move in 60 s | **11.8 mm** | 9.5 m (falls) |
+| 8-box stack kept awake, top's furthest move in 60 s | **2.5 mm** | 9.5 m (falls) |
 | Box sliding down a slope, acceleration error | **0.0%** | −100% (stuck) |
-| Ball bounced from 3 m, height error | **−1.8%** | +13.1% |
+| Ball bounced from 3 m, height error | **−1.8%** | +21.6% |
 | A rock's moment of inertia (9.14 is right) | **9.14** | 66.7 |
 | A box resting on the ground, how far it sinks | 0.07 mm | **0.00 mm** |
 
