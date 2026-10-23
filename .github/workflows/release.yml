@@ -3,7 +3,8 @@ name: Release
 # Releases with Changesets (see .changeset/README.md). On every push to main: while there are
 # changesets, keeps the "Version Packages" pull request up to date with the bumped versions and
 # changelogs; once it is merged, checks and packs the packages, publishes them to npm by trusted
-# publishing (no token: npm trusts this workflow), and makes a git tag and a GitHub release for each.
+# publishing (no token: npm trusts this workflow), and makes a git tag and a GitHub release for each,
+# with the package's tarball attached to download.
 on:
   push:
     branches: [main]
@@ -99,7 +100,30 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: npm ci
-      - uses: changesets/action/publish@v2
+      - id: publish
+        uses: changesets/action/publish@v2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
           create-github-releases: true
+      # each package's GitHub release gets the very tarball npm was given, to download from there too
+      - if: steps.publish.outputs.published == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.pack.outputs.pack-dir-artifact-id }}
+          path: packed
+      - if: steps.publish.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED: ${{ steps.publish.outputs.published-packages }}
+        run: |
+          echo "$PUBLISHED" | jq -c '.[]' | while read -r package; do
+            name=$(echo "$package" | jq -r .name)
+            version=$(echo "$package" | jq -r .version)
+            # named after the package without its scope, and its version: core-0.2.0.tgz, say
+            tarballs=$(find packed -name "*$(basename "$name")-$version.tgz")
+            if [ "$(echo "$tarballs" | grep -c .)" != 1 ]; then
+              echo "::error::expected one tarball for $name@$version in the packed output, found: ${tarballs:-none}"
+              exit 1
+            fi
+            gh release upload "$name@$version" "$tarballs" --repo "$GITHUB_REPOSITORY" --clobber
+          done
