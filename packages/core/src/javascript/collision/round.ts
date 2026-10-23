@@ -148,6 +148,35 @@ export function roundingAt(collider: Collider, pose: ColliderPose, contactPoint:
   return { center: contactPoint.clone().addScaledVector(outward, -reach), reach: outward.clone().multiplyScalar(reach) };
 }
 
+/** Below this sine between the outward direction and a cylinder's or cone's axis, it stands flat on an end, with no one lowest point on the rim. */
+const RIM_TILT_SINE = 0.01;
+const rimCenter = new Vector3();
+const rimPoint = new Vector3();
+
+/**
+ * Where a contact sits on the rim of a cylinder's or cone's end, if it is the rim's furthest
+ * point toward the other body, as a tipped drum's lowest point is: the middle of the end, the
+ * rim's radius, the axis and its sine with the outward direction. The rim's furthest point goes
+ * round it as the drum rolls on it, so it is followed as the end turns, not fixed in the body:
+ * it reaches `radius × √(1 − (outward · axis)²)` out from the middle along the outward direction.
+ * @param outward Unit direction from this collider toward the other one.
+ */
+export function rimAt(collider: Collider, pose: ColliderPose, contactPoint: Vector3, outward: Vector3): { center: Vector3; radius: number; axis: Vector3; sine: number } | undefined {
+  if (!(collider instanceof CylinderCollider || collider instanceof ConeCollider)) return undefined;
+  axisAt(pose, axis);
+  across.copy(outward).addScaledVector(axis, -outward.dot(axis));
+  const sine = across.length();
+  if (sine < RIM_TILT_SINE) return undefined;
+  across.divideScalar(sine);
+  for (const [height, radius] of ringsOf(collider)) {
+    if (radius === 0) continue;
+    rimCenter.copy(pose.position).addScaledVector(axis, height);
+    rimPoint.copy(rimCenter).addScaledVector(across, radius);
+    if (rimPoint.distanceToSquared(contactPoint) <= (1e-6 * radius) ** 2) return { center: rimCenter.clone(), radius, axis: axis.clone(), sine };
+  }
+  return undefined;
+}
+
 /** The radius a collider rolls on, for rolling resistance: a sphere's, capsule's or cylinder's, or a cone's at its middle. */
 export function rollingRadius(collider: Collider): number | undefined {
   if (collider instanceof SphereCollider || collider instanceof CapsuleCollider || collider instanceof CylinderCollider) return collider.radius;

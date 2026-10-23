@@ -95,6 +95,8 @@ export class JavaScriptBackend implements PhysicsBackend {
   removeBody(body: Body): void {
     const solverBody = this.solverBodies.get(body);
     if (!solverBody) return;
+    // what rested on it falls
+    this.collisions.wakeAround(solverBody);
     this.solverBodies.delete(body);
     this.bodyList = this.bodyList.filter((candidate) => candidate !== solverBody);
     this.movingList = this.movingList.filter((candidate) => candidate !== solverBody);
@@ -103,6 +105,8 @@ export class JavaScriptBackend implements PhysicsBackend {
 
   updateBody(body: Body): void {
     const solverBody = this.solverBodyOf(body);
+    // where its colliders were: what one taken away held up falls
+    this.collisions.wakeAround(solverBody);
     solverBody.copyMassFrom(body);
     this.queries.bodyChanged(solverBody);
   }
@@ -134,6 +138,8 @@ export class JavaScriptBackend implements PhysicsBackend {
     this.softStep?.forget(joint);
     this.constraintList = this.constraintList.filter((candidate) => candidate !== constraint);
     const [bodyA, bodyB] = constraint.bodies ?? [];
+    // what the joint held up, as a lamp hanging from it asleep, falls
+    for (const held of [bodyA, bodyB]) if (held?.isSleeping) held.wakeUp();
     if (bodyA && bodyB && !joint.collideConnected) {
       bodyA.collideAgainWith(bodyB);
       bodyB.collideAgainWith(bodyA);
@@ -154,7 +160,10 @@ export class JavaScriptBackend implements PhysicsBackend {
 
   writePose(body: Body): void {
     const solverBody = this.solverBodyOf(body);
+    // moved by hand: what rested on it where it was, and what it is moved into, wake
+    this.collisions.wakeAround(solverBody);
     solverBody.copyPoseFrom(body);
+    this.collisions.wakeAround(solverBody);
     if (solverBody.type === 'static') this.settleStatic(solverBody);
     this.queries.bodyChanged(solverBody);
   }
@@ -169,6 +178,7 @@ export class JavaScriptBackend implements PhysicsBackend {
 
   sleep(body: Body): void {
     this.solverBodyOf(body).sleep();
+    this.collisions.bodiesFellAsleep();
   }
 
   applyLoads(body: Body, force: Vector3, torque: Vector3): void {
@@ -262,6 +272,7 @@ export class JavaScriptBackend implements PhysicsBackend {
       if (!group) body.sleep();
       else if (group.every((member) => !member.isMovable || (member.isReadyToSleep(timeToSleep) && !keptAwake.has(member)))) for (const member of group) member.sleep();
     }
+    this.collisions.bodiesFellAsleep();
   }
 
   /** The sets of awake bodies that joints tie together, each body mapped to its set. */

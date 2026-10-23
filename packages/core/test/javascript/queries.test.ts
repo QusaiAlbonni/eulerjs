@@ -120,9 +120,15 @@ describe('ray casts', () => {
     const ball = world.addBody(new Body({ massProperties: MassProperties.sphere(0.5, 1), position: new Vector3(0, 10, 0), canSleep: false, colliders: [new SphereCollider({ radius: 0.5 })] }));
     // before any step
     expect(world.castRay(new Vector3(0, 20, 0), down)!.distance).toBeCloseTo(9.5, 9);
-    // moved by hand
-    ball.position.set(0, 5, 0);
+    // moved by hand with setPose: seen at once
+    ball.setPose(new Vector3(0, 5, 0), ball.quaternion);
     expect(world.castRay(new Vector3(0, 20, 0), down)!.distance).toBeCloseTo(14.5, 9);
+    // moved by hand straight on its position: queries look for that once a step, at the first query after one
+    ball.position.set(0, 7, 0);
+    expect(world.castRay(new Vector3(0, 20, 0), down)!.distance).toBeCloseTo(14.5, 9);
+    world.fixedStep();
+    ball.position.set(0, 6, 0);
+    expect(world.castRay(new Vector3(0, 20, 0), down)!.distance).toBeCloseTo(13.5, 9);
     // falling
     for (let step = 0; step < 30; step++) world.fixedStep();
     expect(world.castRay(new Vector3(0, 20, 0), down)!.distance).toBeCloseTo(20 - ball.position.y - 0.5, 9);

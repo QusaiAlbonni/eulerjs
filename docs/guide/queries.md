@@ -120,9 +120,10 @@ const target = world.castRay(eye, toTarget, {
 
 Queries search a bounding volume tree of every collider, so their cost grows slowly with the size
 of the world. They see bodies where they are now: bodies added since the last step, and bodies
-you moved by hand, are found where you put them. Noticing hand-moved bodies costs a look at every
-body per query, about 10 ns each, which only matters with many thousands of bodies and many
-queries per frame.
+you moved by hand, are found where you put them. To notice bodies moved by hand, the first query
+after each step looks at every body, about 10 ns each; the ones after it don't, until the next
+step. Between two queries of the same step, move a body with `body.setPose(position, quaternion)`
+for the second to see it: written straight to `body.position`, it is seen from the next step on.
 
 Queries see the bodies at their latest step, not where they are drawn (which is up to one step
 behind; see [Getting started](./getting-started#interpolation)).

@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import type { Box3 } from 'three';
 import { MassProperties } from '../MassProperties.js';
 import type { MassSpecification } from '../MassProperties.js';
-import { Collider } from './Collider.js';
+import { Collider, ROUND_ROLLING_RESISTANCE } from './Collider.js';
 import type { ColliderOptions, ColliderPose } from './Collider.js';
 import { ConvexCollider } from './ConvexCollider.js';
 
@@ -29,7 +29,7 @@ export class CylinderCollider extends Collider {
   private standIn: ConvexCollider | undefined;
 
   constructor(options: CylinderColliderOptions) {
-    super(options);
+    super(options, ROUND_ROLLING_RESISTANCE);
     if (!(options.radius > 0)) throw new RangeError(`radius must be positive, got ${options.radius}`);
     if (!(options.height > 0)) throw new RangeError(`height must be positive, got ${options.height}`);
     this.radius = options.radius;

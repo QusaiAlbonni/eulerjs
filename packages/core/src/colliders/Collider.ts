@@ -5,6 +5,14 @@ import type { RigidBodyState } from '../RigidBodyState.js';
 
 const rotationMatrixScratch = new Matrix4();
 
+/**
+ * The rolling resistance a ball, capsule, cylinder or cone has unless told otherwise: without any,
+ * one rolling on flat ground keeps all its speed for ever, as an ideal rigid body would, where a
+ * real one is slowed by the give in both surfaces. A barrel knocked rolling at 1.5 m/s comes to
+ * rest in about 12 s.
+ */
+export const ROUND_ROLLING_RESISTANCE = 0.02;
+
 export interface ColliderOptions {
   /** Where the collider sits in its body's frame. Defaults to the origin. */
   offset?: Vector3 | undefined;
@@ -18,8 +26,9 @@ export interface ColliderOptions {
    * Resistance to rolling, as a share of the load: a ball, capsule, cylinder or cone rolling on
    * this, or this one rolling, is held back by a torque of at most this times the contact force
    * times its radius, and so is one spinning on the spot. Two colliders use the larger. Defaults
-   * to 0, rolling for ever; about 0.002 for steel on steel, 0.01 for a ball on a hard floor, 0.05
-   * or more for something soft.
+   * to `ROUND_ROLLING_RESISTANCE` (0.02) for those round shapes, which come to rest after rolling
+   * a while, and to 0 for the others; 0 on a round shape rolls it for ever. About 0.002 for steel
+   * on steel, 0.01 for a ball on a hard floor, 0.05 or more for something soft.
    */
   rollingResistance?: number | undefined;
   /** Bit mask of the groups this collider is in. Defaults to group 1. */
@@ -40,6 +49,11 @@ export interface ColliderPose {
   readonly quaternion: Quaternion;
   /** The collider's axes in world space, as matrix columns. */
   readonly rotation: Matrix3;
+  /**
+   * The body the collider is posed on, when it is: one collider may be on many bodies, and what
+   * is worked out for it at a pose is kept per body.
+   */
+  readonly owner?: object | undefined;
 }
 
 /**
@@ -58,19 +72,21 @@ export abstract class Collider {
   collidesWith: number;
   sensor: boolean;
 
-  constructor(options: ColliderOptions = {}) {
+  /** @param defaultRollingResistance What `rollingResistance` is when the options leave it out: `ROUND_ROLLING_RESISTANCE` for the shapes that roll. */
+  constructor(options: ColliderOptions = {}, defaultRollingResistance = 0) {
     this.offset = (options.offset ?? new Vector3()).clone();
     this.rotation = (options.rotation ?? new Quaternion()).clone().normalize();
     this.friction = options.friction ?? 0.5;
     this.restitution = options.restitution ?? 0;
-    this.rollingResistance = options.rollingResistance ?? 0;
+    this.rollingResistance = options.rollingResistance ?? defaultRollingResistance;
     this.collisionGroups = options.collisionGroups ?? 1;
     this.collidesWith = options.collidesWith ?? 0xffffffff;
     this.sensor = options.sensor ?? false;
   }
 
   /** @internal Writes where this collider is in the world, given its body's pose. */
-  poseIn(body: RigidBodyState, target: { position: Vector3; quaternion: Quaternion; rotation: Matrix3 }): void {
+  poseIn(body: RigidBodyState, target: { position: Vector3; quaternion: Quaternion; rotation: Matrix3; owner?: object | undefined }): void {
+    target.owner = body;
     body.pointToWorld(this.offset, target.position);
     target.quaternion.multiplyQuaternions(body.quaternion, this.rotation);
     target.rotation.setFromMatrix4(rotationMatrixScratch.makeRotationFromQuaternion(target.quaternion));

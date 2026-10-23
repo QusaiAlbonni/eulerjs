@@ -120,10 +120,38 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('cylind
     return created;
   };
 
+  it('rolls a drum spun on the rim of its end without gaining energy, nothing but friction holding the rim', () => {
+    // The rim touches at its lowest point, which runs round it as the drum rolls: friction held
+    // at the point that touched when the step began pushed the drum round faster, some 10 J a
+    // second, more with more substeps. Rolling resistance would hide it, so there is none.
+    const floor = world(0, 0.6);
+    const tipped = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (6 * Math.PI) / 180);
+    const drum = floor.addBody(new Body({ position: new Vector3(0, 0.37, 0), quaternion: tipped, colliders: [new CylinderCollider({ radius: 0.3, height: 0.7, friction: 0.6, rollingResistance: 0 })], density: 500, canSleep: false }));
+    drum.angularVelocity.set(0, 2, 0);
+    const inertia = new Matrix3();
+    const energy = (): number => {
+      inertia.copy(drum.worldInverseInertia).invert();
+      const spin = drum.angularVelocity;
+      return 0.5 * drum.mass * drum.velocity.lengthSq() + 0.5 * spin.dot(spin.clone().applyMatrix3(inertia)) + drum.mass * 9.81 * drum.position.y;
+    };
+    // once it has landed on the rim
+    for (let step = 0; step < 30; step++) floor.fixedStep();
+    const landed = energy();
+    let most = landed;
+    for (let step = 0; step < 60 * 6; step++) {
+      floor.fixedStep();
+      most = Math.max(most, energy());
+    }
+    // soft step still gains a little within each substep, about 1 J a second (see TODO.md), where
+    // the bug gained 60 J in these 6 s; XPBD gains none
+    expect(most - landed).toBeLessThan(10);
+  });
+
   it('rolls a cylinder down a slope at g sin θ / (1 + I / m r²), two thirds of g sin θ', () => {
     const tilt = 0.25;
     const slope = world(tilt, 0.9);
-    const shape = new CylinderCollider({ radius: 0.5, height: 1, friction: 0.9 });
+    // an ideal cylinder, with nothing to slow its rolling
+    const shape = new CylinderCollider({ radius: 0.5, height: 1, friction: 0.9, rollingResistance: 0 });
     const massProperties = shape.massProperties({ density: 500 });
     const up = new Vector3(0, Math.cos(tilt), Math.sin(tilt));
     const body = slope.addBody(new Body({ massProperties, position: up.clone().multiplyScalar(0.5), quaternion: lyingDown, colliders: [shape], canSleep: false }));
@@ -141,7 +169,8 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('cylind
     const floor = new World({ backend: new JavaScriptBackend({ solver }) });
     const flat = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => 0));
     floor.addBody(new Body({ type: 'static', colliders: [ground === 'plane' ? new PlaneCollider({ friction: 0.8 }) : new HeightfieldCollider({ heights: flat, cellSize: 1, friction: 0.8 })] }));
-    const shape = new ConeCollider({ radius: 0.35, height: 0.8, friction: 0.7 });
+    // an ideal cone, whose rolling only the ground can take energy from
+    const shape = new ConeCollider({ radius: 0.35, height: 0.8, friction: 0.7, rollingResistance: 0 });
     // on its side, the line from its tip to its rim flat on the ground
     const halfAngle = Math.atan2(0.35, 0.8);
     const quaternion = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 2 + halfAngle);
@@ -195,6 +224,24 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('cylind
     // a cone lying on its side would roll round its tip for ever on round contacts; on the
     // heightfield it collides as its hull, which rolls to a stop, and it must not rock on its edges
     expect(cones.filter((cone) => !cone.isSleeping)).toHaveLength(0);
+  });
+
+  it('brings a barrel, a cone and a ball knocked rolling on flat ground to rest, unless told to roll for ever', () => {
+    const floor = new World({ backend: new JavaScriptBackend({ solver }) });
+    floor.addBody(new Body({ type: 'static', colliders: [new PlaneCollider({ friction: 0.8 })] }));
+    // on the exact round contacts of a plane nothing slows them but their rolling resistance
+    const roll = (collider: CylinderCollider | ConeCollider | SphereCollider, height: number, along: number): Body => {
+      const lying = collider instanceof SphereCollider ? new Quaternion() : new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
+      return floor.addBody(new Body({ position: new Vector3(0, height, along), quaternion: lying, velocity: new Vector3(1.5, 0, 0), angularVelocity: new Vector3(0, 0, -1.5 / height), colliders: [collider], density: 400 }));
+    };
+    const barrel = roll(new CylinderCollider({ radius: 0.3, height: 0.9 }), 0.3, 0);
+    const trafficCone = roll(new ConeCollider({ radius: 0.25, height: 0.7 }), 0.12, 4);
+    const ball = roll(new SphereCollider({ radius: 0.3 }), 0.3, 8);
+    const ideal = roll(new CylinderCollider({ radius: 0.3, height: 0.9, rollingResistance: 0 }), 0.3, 12);
+    for (let step = 0; step < 60 * 20; step++) floor.fixedStep();
+    for (const body of [barrel, trafficCone, ball]) expect(body.isSleeping).toBe(true);
+    // and one with none still rolling, near the speed it was knocked to
+    expect(ideal.velocity.length()).toBeGreaterThan(1.4);
   });
 
   it('stands a cylinder and a cone on their bases, and lays a fallen cylinder on its side, all asleep', () => {

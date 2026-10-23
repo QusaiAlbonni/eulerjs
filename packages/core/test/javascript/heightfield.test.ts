@@ -131,7 +131,7 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('height
     const up = new Vector3(-Math.sin(tilt), Math.cos(tilt), 0);
     const startX = 12;
     const ball = world.addBody(
-      new Body({ massProperties: MassProperties.sphere(0.5, 1), position: new Vector3(startX, slope * startX, 0.3).addScaledVector(up, 0.5), canSleep: false, colliders: [new SphereCollider({ radius: 0.5, friction: 0.9 })] }),
+      new Body({ massProperties: MassProperties.sphere(0.5, 1), position: new Vector3(startX, slope * startX, 0.3).addScaledVector(up, 0.5), canSleep: false, colliders: [new SphereCollider({ radius: 0.5, friction: 0.9, rollingResistance: 0 })] }),
     );
     const downhill = new Vector3(-Math.cos(tilt), -Math.sin(tilt), 0);
     for (let step = 0; step < 30; step++) world.fixedStep();

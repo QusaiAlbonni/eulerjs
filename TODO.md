@@ -30,13 +30,11 @@ platforms, built on the shape cast.
 
 ## Rolling on a rim
 
-- A cylinder rolling on the rim of its end, like a coin, gains energy under both solvers: about
-  6 J a second for a 100 kg drum without rolling resistance. With rolling resistance, XPBD's hold
-  hides it and the drum falls flat; soft step's doesn't, and it rolls on for ever, keeping what
-  it touches awake. The rim's contact is anchored as a point fixed in the body, though the
-  touching point goes round the rim as it rolls; anchoring it as rolling (the middle of the end
-  and a reach out to the rim) made it worse, so the cause is still to find.
-  `sleeping.test.ts` has the case, marked as failing.
+- A drum rolling on the rim of its end touches at the rim's lowest point, which runs round the
+  rim; both solvers now follow it (soft step moves the contact's anchor there before each pass,
+  XPBD's anchor is the rim's furthest point). Without rolling resistance, soft step still gains a
+  little energy within each substep (about 1 J a second for a 100 kg drum tipped 6° and spun,
+  from 8 J a second), less the more substeps; XPBD loses it.
 
 ## Contacts under XPBD
 
@@ -91,6 +89,30 @@ needs.
   face (a cone's hull lying on its side) feels as a slight rocking while it is kept awake. It
   falls asleep through it.
 - Dynamic triangle meshes; mesh colliders are for static and kinematic bodies.
+
+## Physics from a scene
+
+A plugin, `world.use(new ScenePhysics(scene))`, that is handed a three.js scene (a loaded glTF,
+say) and makes and keeps its bodies itself:
+
+- What each object is, read from the scene first: glTF's `KHR_physics_rigid_bodies` and
+  `KHR_implicit_shapes` (three.js's GLTFLoader keeps unknown extensions in
+  `userData.gltfExtensions`), `userData` (Blender custom properties arrive as glTF extras), and
+  naming conventions (`UCX_` collision proxies, `_static`). Where nothing says, cautious guesses:
+  meshes take part, lights, cameras, lines and helpers don't; parts of an animation are
+  kinematic; large, open or ground-like meshes are static; small closed ones move; when unsure,
+  static. Every decision reported with its reason, and any of them overridable per object.
+- Shapes: static scenery as its triangles (`MeshCollider`) or a heightfield for a grid; a moving
+  object as the primitive that best fits its volume, else its hull; a concave one that moves
+  (a mug, a chair) needs convex decomposition, which eulerjs doesn't have yet. Hulls of heavy
+  meshes simplified first. A scene modelled in centimetres warned about.
+- At runtime: listening for `childadded` and `childremoved` on every node of the scene (they
+  don't bubble), noting what changed and catching up once at the start of the next step, so that
+  an object removed and added back in between (as `attach` does to reparent it) keeps its body
+  and velocity, a group added at once is one pass, and the order is the tree's, for determinism.
+  Changes no event tells of (a mesh's geometry or scale, an InstancedMesh's `count`) through
+  `world.refresh(object)`. A hidden object keeps its body; one with a body made by hand is left
+  alone; a body set under another moving body stays its own unless asked to join it.
 
 ## Beyond rigid bodies
 

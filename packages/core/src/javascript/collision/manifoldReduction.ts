@@ -2,10 +2,16 @@ import { Vector3 } from 'three';
 import type { ContactPoint } from './narrowphase.js';
 
 /**
- * Most points a manifold keeps: up to the eight two boxes' faces clip to, and above that the four
- * that span the patch and the four deepest of the rest.
+ * Most points a manifold keeps: the four that span the patch and the four deepest of the rest.
+ * One flat face clipped against another keeps only the four (see `FACE_PATCH_POINTS`).
  */
 const MAX_POINTS = 8;
+/**
+ * Most points a patch of one face against another keeps: the four that span it, which hold a box
+ * or a cylinder up as well as any more could and leave a stack steadier than eight. A body
+ * across several triangles keeps up to `MAX_POINTS`, the extra ones keeping it from rocking.
+ */
+export const FACE_PATCH_POINTS = 4;
 const EXTREME_POINTS = 4;
 /** Points whose normals are within about 10° of each other are one patch, which may be thinned out. */
 const SAME_PATCH_COSINE = Math.cos((10 * Math.PI) / 180);
@@ -21,8 +27,8 @@ const across = new Vector3();
  * or more points, each costing a constraint, where these eight do the same job. Points facing
  * different ways, as on a ridge, are all kept.
  */
-export function reduceManifold(points: ContactPoint[]): void {
-  if (points.length <= MAX_POINTS) return;
+export function reduceManifold(points: ContactPoint[], most = MAX_POINTS): void {
+  if (points.length <= most) return;
   const firstNormal = points[0]!.normal;
   if (points.some((point) => point.normal.dot(firstNormal) < SAME_PATCH_COSINE)) return;
   const kept: ContactPoint[] = [];
@@ -41,7 +47,7 @@ export function reduceManifold(points: ContactPoint[]): void {
   kept.push(fourth);
   // and the deepest of the rest, which do most of the pushing
   const rest = points.filter((point) => !kept.includes(point)).sort((first, second) => second.depth - first.depth);
-  kept.push(...rest.slice(0, MAX_POINTS - EXTREME_POINTS));
+  kept.push(...rest.slice(0, Math.max(0, most - EXTREME_POINTS)));
   points.length = 0;
   points.push(...kept);
 }

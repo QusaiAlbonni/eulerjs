@@ -26,9 +26,13 @@ interface PoseScratch {
 const poseA: PoseScratch = { position: new Vector3(), quaternion: new Quaternion(), rotation: new Matrix3() };
 const poseB: PoseScratch = { position: new Vector3(), quaternion: new Quaternion(), rotation: new Matrix3() };
 const boundsScratch = new Box3();
+const wakeBounds = new Box3();
 export interface PairSearchEntry extends BroadphaseEntry<SolverBody> {
   /** How far the body can move in the step, in metres; 0 for static and sleeping bodies. */
   travel: number;
+  /** The parts of `travel` its moving along and its turning make: how far its centre of mass goes, and the furthest point of its colliders turns. */
+  slideTravel: number;
+  turnTravel: number;
   /** The last step it was seen with colliders on, to drop it once it is gone. */
   seenOnStep: number;
   /** Whether the body was fixed, static or asleep, when this step's search began. */
@@ -101,7 +105,11 @@ export class CollisionSystem {
    * are, have changed since: unchanged, the entries are still in order, along the same axis.
    */
   private sweepAxes: SweepAxes | undefined;
+  /** The entries' bounds for the sweep, six numbers each: see `findCandidatePairs`. */
+  private sweepBounds = new Float64Array(0);
   private entriesChanged = true;
+  /** Whether bodies have fallen asleep since the search last put the fixed ones in the tree: until it does, they are among the entries only. */
+  private sleepersOutsideTree = false;
   private stepNumber = 0;
   private activeContacts: ContactConstraint[] = [];
   private patches: ContactPatch[] = [];
@@ -134,6 +142,7 @@ export class CollisionSystem {
    */
   findCandidatePairs(bodies: readonly SolverBody[], timestep: number, wakeSpeed = 0, afterWaking: () => void = () => {}): void {
     this.updateEntries(bodies, timestep);
+    this.fixedTree.rebuildIfWorthwhile();
     const entries = this.entries;
     // sorted as a sweep over every entry would sort them, for the pairs to come out in its order;
     // with nothing changed since the last search, they already are
@@ -151,18 +160,37 @@ export class CollisionSystem {
     const swept: [PairSearchEntry, PairSearchEntry][] = [];
     const behind: [PairSearchEntry, PairSearchEntry][] = [];
     const { along, first: across, second: up } = axes;
-    for (let first = 0; first < entries.length; first++) {
+    // every entry's bounds, in sweep order, along then across then up, low then high: read in the
+    // innermost loop from one flat array rather than by axis name from each entry's box
+    const count = entries.length;
+    if (this.sweepBounds.length < 6 * count) this.sweepBounds = new Float64Array(12 * count);
+    const sweep = this.sweepBounds;
+    for (let index = 0; index < count; index++) {
+      const { min, max } = entries[index]!.bounds;
+      const at = 6 * index;
+      sweep[at] = min[along];
+      sweep[at + 1] = max[along];
+      sweep[at + 2] = min[across];
+      sweep[at + 3] = max[across];
+      sweep[at + 4] = min[up];
+      sweep[at + 5] = max[up];
+    }
+    for (let first = 0; first < count; first++) {
       const entry = entries[first]!;
       if (entry.fixed) continue;
-      const bounds = entry.bounds;
+      const at = 6 * first;
+      const maxAlong = sweep[at + 1]!;
+      const minAcross = sweep[at + 2]!;
+      const maxAcross = sweep[at + 3]!;
+      const minUp = sweep[at + 4]!;
+      const maxUp = sweep[at + 5]!;
       // the sweep's innermost loop, its tests written out
-      for (let second = first + 1; second < entries.length; second++) {
-        const other = entries[second]!;
-        const otherBounds = other.bounds;
-        if (otherBounds.min[along] > bounds.max[along]) break;
-        if (otherBounds.min[across] > bounds.max[across] || otherBounds.max[across] < bounds.min[across]) continue;
-        if (otherBounds.min[up] > bounds.max[up] || otherBounds.max[up] < bounds.min[up]) continue;
-        swept.push([entry, other]);
+      for (let second = first + 1; second < count; second++) {
+        const otherAt = 6 * second;
+        if (sweep[otherAt]! > maxAlong) break;
+        if (sweep[otherAt + 2]! > maxAcross || sweep[otherAt + 3]! < minAcross) continue;
+        if (sweep[otherAt + 4]! > maxUp || sweep[otherAt + 5]! < minUp) continue;
+        swept.push([entry, entries[second]!]);
       }
       this.forEachFixedOverlapping(entry, axes, (fixed) => {
         if (fixed.order < entry.order) behind.push([fixed, entry]);
@@ -192,7 +220,7 @@ export class CollisionSystem {
       const bodyB = entryB.item;
       if (!bodyA.isMovable && !bodyB.isMovable) continue;
       if (bodyA.ignoresCollisionsWith(bodyB)) continue;
-      const margin = entryA.travel + entryB.travel + CONTACT_SLOP;
+      const margin = contactMargin(entryA, entryB, timestep);
       this.candidatePairs.push(bodyA.isMovable ? { bodyA, bodyB, margin } : { bodyA: bodyB, bodyB: bodyA, margin });
     }
   }
@@ -268,15 +296,6 @@ export class CollisionSystem {
     for (const contact of this.activeContacts) contact.accumulateImpulse();
   }
 
-  /** How far any point of the body's colliders can move in a step, at its current speed and spin. */
-  private travelInStep(body: SolverBody, timestep: number): number {
-    if (body.type === 'static') return 0;
-    let largestRadius = 0;
-    for (const collider of body.colliders) largestRadius = Math.max(largestRadius, collider.boundingRadius + collider.offset.length());
-    const travel = (body.velocity.length() + body.angularVelocity.length() * largestRadius) * timestep;
-    return Number.isFinite(travel) ? travel : 0;
-  }
-
   /**
    * Brings the entries up to date with the bodies: adds new ones, drops ones that are gone or have
    * no colliders left, and works out each body's travel and swept bounds. A static or sleeping
@@ -284,12 +303,13 @@ export class CollisionSystem {
    */
   private updateEntries(bodies: readonly SolverBody[], timestep: number): void {
     const stepNumber = ++this.stepNumber;
+    this.sleepersOutsideTree = false;
     let anyGone = false;
     for (const body of bodies) {
       if (body.colliders.length === 0) continue;
       let entry = body.pairSearchEntry;
       if (!entry) {
-        entry = { item: body, bounds: new Box3(), travel: 0, seenOnStep: 0, fixed: false, leaf: undefined, order: 0 };
+        entry = { item: body, bounds: new Box3(), travel: 0, slideTravel: 0, turnTravel: 0, seenOnStep: 0, fixed: false, leaf: undefined, order: 0 };
         body.pairSearchEntry = entry;
         this.entries.push(entry);
         this.entriesChanged = true;
@@ -302,7 +322,7 @@ export class CollisionSystem {
         if (!placed) this.placeFixed(entry);
         continue;
       }
-      entry.travel = this.travelInStep(body, timestep);
+      measureTravel(entry, timestep);
       this.sweptBounds(body, entry.travel, entry.bounds);
       body.boundsStale = !fixed;
       this.entriesChanged = true;
@@ -321,6 +341,33 @@ export class CollisionSystem {
     this.entriesChanged = true;
   }
 
+  /** Notes that bodies have been put to sleep, which the tree has yet to take in (see `wakeAround`). */
+  bodiesFellAsleep(): void {
+    this.sleepersOutsideTree = true;
+  }
+
+  /**
+   * Wakes the sleeping bodies whose bounds overlap `body`'s, where the search last saw it and
+   * where it is now: when it is taken away, moved by hand, or given other colliders or mass, what
+   * rests on it, hangs on it or has it moved into it can't stay asleep, held up by nothing.
+   */
+  wakeAround(body: SolverBody): void {
+    const entry = body.pairSearchEntry;
+    if (entry) this.wakeSleepersIn(entry.bounds, body);
+    if (body.colliders.length > 0) this.wakeSleepersIn(this.sweptBounds(body, 0, wakeBounds), body);
+  }
+
+  private wakeSleepersIn(bounds: Box3, body: SolverBody): void {
+    if (bounds.isEmpty()) return;
+    const wake = (other: PairSearchEntry) => {
+      if (other.item !== body && other.item.isSleeping && other.bounds.intersectsBox(bounds)) other.item.wakeUp();
+    };
+    this.fixedTree.query(bounds, wake);
+    for (const unbounded of this.unboundedFixed) wake(unbounded);
+    // the ones fallen asleep since the tree last took them in
+    if (this.sleepersOutsideTree) for (const other of this.entries) if (!other.leaf && !this.unboundedFixed.has(other)) wake(other);
+  }
+
   /** Calls `visit` with every fixed entry, but `entry` itself, whose bounds overlap `entry`'s. */
   private forEachFixedOverlapping(entry: PairSearchEntry, axes: SweepAxes, visit: (fixed: PairSearchEntry) => void): void {
     this.fixedTree.query(entry.bounds, (fixed) => {
@@ -331,7 +378,7 @@ export class CollisionSystem {
 
   private placeFixed(entry: PairSearchEntry): void {
     const bounds = entry.bounds;
-    if (Number.isFinite(bounds.min.x + bounds.min.y + bounds.min.z + bounds.max.x + bounds.max.y + bounds.max.z)) entry.leaf = this.fixedTree.insert(entry, bounds);
+    if (Number.isFinite(bounds.min.x + bounds.min.y + bounds.min.z + bounds.max.x + bounds.max.y + bounds.max.z)) entry.leaf = this.fixedTree.insert(entry, bounds, 0);
     else this.unboundedFixed.add(entry);
   }
 
@@ -352,6 +399,37 @@ export class CollisionSystem {
 }
 
 /** Pairs by their first entry's place in the sweep, then their second's. */
+/** How far any point of the entry's body's colliders can move in a step at its current speed and spin, and how much of that is sliding and turning. */
+function measureTravel(entry: PairSearchEntry, timestep: number): void {
+  const body = entry.item;
+  entry.travel = entry.slideTravel = entry.turnTravel = 0;
+  if (body.type === 'static') return;
+  let largestRadius = 0;
+  for (const collider of body.colliders) largestRadius = Math.max(largestRadius, collider.boundingRadius + collider.offset.length());
+  const slideTravel = body.velocity.length() * timestep;
+  const turnTravel = body.angularVelocity.length() * largestRadius * timestep;
+  if (!Number.isFinite(slideTravel + turnTravel)) return;
+  entry.travel = slideTravel + turnTravel;
+  entry.slideTravel = slideTravel;
+  entry.turnTravel = turnTravel;
+}
+
+/**
+ * How far apart two entries' colliders may be and still become contacts: as far as they can close
+ * on each other in the step. Against a still body that is how far the moving one can go. Between
+ * two moving bodies it is how fast they move toward each other, but no less than either one
+ * moves, in case the other is stopped dead on the way, as the front one of two flying together
+ * is by a wall: as the boxes of a pile flung apart mostly are, that is far less than the two
+ * travels together.
+ */
+function contactMargin(entryA: PairSearchEntry, entryB: PairSearchEntry, timestep: number): number {
+  const apart = entryA.travel + entryB.travel + CONTACT_SLOP;
+  if (entryA.fixed || entryB.fixed) return apart;
+  const closingSpeed = entryA.item.velocity.distanceTo(entryB.item.velocity);
+  const closing = Math.max(closingSpeed * timestep, entryA.slideTravel, entryB.slideTravel) + entryA.turnTravel + entryB.turnTravel + CONTACT_SLOP;
+  return closing < apart ? closing : apart;
+}
+
 function bySweepOrder(one: [PairSearchEntry, PairSearchEntry], other: [PairSearchEntry, PairSearchEntry]): number {
   return one[0].order - other[0].order || one[1].order - other[1].order;
 }

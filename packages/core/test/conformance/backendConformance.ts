@@ -459,8 +459,10 @@ export function describeBackendConformance(backendName: string, createBackend: (
       expect(world.castRay(new Vector3(), new Vector3(0, 1, 0))).toBeUndefined();
       expect(world.castShape(new SphereCollider({ radius: 0.25 }), new Vector3(), new Vector3(1, 0, 0))!.distance).toBeCloseTo(4.25, 6);
       expect(world.overlap(new SphereCollider({ radius: 1 }), new Vector3(4, 0, 0)).map((hit) => hit.body)).toEqual([crate]);
-      crate.position.set(5, 3, 0);
+      // moved with setPose, it is seen where it has gone at once
+      crate.setPose(new Vector3(5, 3, 0), crate.quaternion);
       expect(world.castRay(new Vector3(), new Vector3(1, 0, 0))).toBeUndefined();
+      expect(world.castRay(new Vector3(5, 0, 0), new Vector3(0, 1, 0))!.body).toBe(crate);
     });
   });
 

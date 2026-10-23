@@ -163,6 +163,78 @@ describe('sleeping', () => {
 });
 
 describe.each(['xpbd', 'soft-step'] as const)('sleeping in islands (%s)', (solver) => {
+  /** A plate asleep on a table on the ground; the table static or, asleep too, dynamic. */
+  const settledPlate = (tableType: 'static' | 'dynamic') => {
+    const world = new World({ backend: new JavaScriptBackend({ solver }) });
+    world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider()] }));
+    const top = new BoxCollider({ size: new Vector3(2, 0.1, 2), offset: new Vector3(0, 0.45, 0) });
+    const legs = new BoxCollider({ size: new Vector3(0.2, 0.9, 0.2) });
+    const table = world.addBody(new Body({ type: tableType, position: new Vector3(0, 0.45, 0), colliders: [top, legs] }));
+    // off to the side of the table's leg, a pillar in its middle, so that nothing but the top is under it
+    const plate = world.addBody(new Body({ position: new Vector3(0.6, 1, 0), colliders: [new BoxCollider({ size: new Vector3(0.3, 0.1, 0.3) })] }));
+    runFor(world, 3);
+    expect(plate.isSleeping).toBe(true);
+    return { world, table, top, plate };
+  };
+  /** Whether the plate, let fall from the table, has come down to rest on the ground. */
+  const onTheGround = (plate: Body) => Math.abs(plate.position.y - 0.05) < 0.01;
+
+  it('lets a sleeping plate fall when the table under it is taken away, static or asleep too', () => {
+    for (const tableType of ['static', 'dynamic'] as const) {
+      const { world, table, plate } = settledPlate(tableType);
+      world.removeBody(table);
+      runFor(world, 2);
+      expect(onTheGround(plate)).toBe(true);
+    }
+  });
+
+  it('lets a sleeping plate fall when the collider under it is taken off the table', () => {
+    const { world, table, top, plate } = settledPlate('static');
+    table.removeCollider(top);
+    runFor(world, 2);
+    expect(onTheGround(plate)).toBe(true);
+  });
+
+  it('lets a sleeping plate fall when its table is moved away by hand, and wakes what a table is moved into', () => {
+    const { world, table, plate } = settledPlate('static');
+    table.setPose(new Vector3(5, 0.45, 0), table.quaternion);
+    runFor(world, 2);
+    expect(onTheGround(plate)).toBe(true);
+    // and moved onto a sleeping box, the table pushes it out rather than standing in it
+    const box = world.addBody(new Body({ position: new Vector3(-5, 0.25, 0), colliders: [new BoxCollider({ size: new Vector3(0.5, 0.5, 0.5) })] }));
+    runFor(world, 2);
+    expect(box.isSleeping).toBe(true);
+    table.setPose(new Vector3(-5, 0.45, 0), table.quaternion);
+    runFor(world, 0.1);
+    expect(box.isSleeping).toBe(false);
+  });
+
+  it('lets a sleeping plate fall when the table is taken away the moment the plate falls asleep', () => {
+    const world = new World({ backend: new JavaScriptBackend({ solver }) });
+    world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider()] }));
+    const table = world.addBody(new Body({ type: 'static', position: new Vector3(0, 0.45, 0), colliders: [new BoxCollider({ size: new Vector3(2, 0.9, 2) })] }));
+    const plate = world.addBody(new Body({ position: new Vector3(0, 1, 0), colliders: [new BoxCollider({ size: new Vector3(0.3, 0.1, 0.3) })] }));
+    // before the next step has seen it asleep
+    for (let step = 0; step < 600 && !plate.isSleeping; step++) world.fixedStep();
+    expect(plate.isSleeping).toBe(true);
+    world.removeBody(table);
+    runFor(world, 2);
+    expect(onTheGround(plate)).toBe(true);
+  });
+
+  it('lets a lamp hanging asleep from a joint fall when the joint is taken away', () => {
+    const world = new World({ backend: new JavaScriptBackend({ solver }) });
+    world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider()] }));
+    const hook = world.addBody(new Body({ type: 'static', position: new Vector3(0, 4, 0) }));
+    const lamp = world.addBody(new Body({ position: new Vector3(0, 3, 0), colliders: [new SphereCollider({ radius: 0.2 })] }));
+    const cord = world.addJoint(new DistanceJoint({ bodyA: lamp, bodyB: hook }));
+    runFor(world, 2);
+    expect(lamp.isSleeping).toBe(true);
+    world.removeJoint(cord);
+    runFor(world, 2);
+    expect(lamp.position.y).toBeCloseTo(0.2, 1);
+  });
+
   it('keeps a box resting on a lift that never sleeps awake, so it rides up when the lift moves', () => {
     const world = new World({ backend: new JavaScriptBackend({ solver }) });
     world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider()] }));
@@ -208,15 +280,15 @@ describe.each(['xpbd', 'soft-step'] as const)('sleeping in islands (%s)', (solve
       const position = new Vector3(Math.sin(index * 2.3), 1 + index * 0.4, Math.cos(index * 1.9));
       return world.addBody(new Body({ position, quaternion, colliders: [shapes[index % shapes.length]!()], density: 500 }));
     });
-    // the last of them lands from 15 m up; all asleep in about 20 s (soft step) or 25 s (XPBD)
-    runFor(world, 30);
+    // the last of them lands from 15 m up; all asleep in about 25 s, or longer when the heap's
+    // landing (which any change to the contacts changes) flings a ball out that has far to roll
+    runFor(world, 40);
     expect(heap.filter((body) => !body.isSleeping)).toHaveLength(0);
   });
 
-  // Known to fail under soft step (see TODO.md): rolling on the rim of its end, a cylinder gains
-  // energy a little faster than rolling resistance takes it, and rolls on for ever instead of
-  // falling flat. XPBD's hold on rolling hides the gain.
-  (solver === 'soft-step' ? it.fails : it)('lays a cylinder tipped onto the rim of its end flat on its face, and puts it to sleep', () => {
+  // Rolling on the rim of its end, a drum touches at the rim's lowest point, which runs round the
+  // rim: held where it was found, friction would push it round faster and faster, for ever.
+  it('lays a cylinder tipped onto the rim of its end flat on its face, and puts it to sleep', () => {
     const world = new World({ backend: new JavaScriptBackend({ solver }) });
     world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider({ friction: 0.6 })] }));
     const tipped = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (6 * Math.PI) / 180);

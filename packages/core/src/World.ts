@@ -34,7 +34,7 @@ export interface WorldOptions {
    * doubling does. A world with nothing to solve integrates each step in one go.
    */
   substeps?: number | undefined;
-  /** Bodies slower than this (m/s) and `sleepSpin` for `timeToSleep` seconds fall asleep. Defaults to 0.01, as in Box2D. */
+  /** Bodies slower than this (m/s) and `sleepSpin` for `timeToSleep` seconds fall asleep. Defaults to 0.05, as in Box2D v3. */
   sleepSpeed?: number | undefined;
   /** In rad/s. Defaults to 0.035 (2° per second). */
   sleepSpin?: number | undefined;
@@ -76,6 +76,15 @@ export class World implements StepSettings {
   /** Each body's motion as the backend last had it, to tell which ones you changed: in the order of `bodyList`. */
   private readonly syncedList: SyncedMotion[] = [];
   /**
+   * The step after which queries last looked at every body for poses changed by hand: they look
+   * once a step, at the first query after it (and the step itself passes every change on as it
+   * begins, so queries during it, from behaviours, needn't). Between, `setPose` tells them.
+   */
+  private posesLookedAtAfterStep = -1;
+  /** The bodies given poses by `setPose` since queries last looked, each with its synced motion. */
+  private readonly posedByHand = new Set<Body>();
+  private readonly syncedOf = new WeakMap<Body, SyncedMotion>();
+  /**
    * For each body in `bodyList`, 1 while this step leaves it be: a static body that nothing has
    * moved, woken or put to sleep since the last step, which the backend already has as it is.
    */
@@ -92,7 +101,7 @@ export class World implements StepSettings {
     this.timestep = options.timestep ?? 1 / 60;
     this.maxStepsPerFrame = options.maxStepsPerFrame ?? 8;
     this.substeps = options.substeps ?? DEFAULT_SUBSTEPS;
-    this.sleepSpeed = options.sleepSpeed ?? 0.01;
+    this.sleepSpeed = options.sleepSpeed ?? 0.05;
     this.sleepSpin = options.sleepSpin ?? (2 * Math.PI) / 180;
     this.timeToSleep = options.timeToSleep ?? 0.5;
     this.backend = options.backend ?? new JavaScriptBackend();
@@ -256,7 +265,9 @@ export class World implements StepSettings {
     }
     this.backend.addBody(body);
     this.bodyList.push(body);
-    this.syncedList.push(new SyncedMotion(body));
+    const synced = new SyncedMotion(body);
+    this.syncedList.push(synced);
+    this.syncedOf.set(body, synced);
     if (body.object) this.bodiesByObject.set(body.object, body);
     if (body.instance) {
       let byIndex = this.bodiesByInstance.get(body.instance.mesh);
@@ -286,6 +297,7 @@ export class World implements StepSettings {
     for (const other of [...(this.noCollisions.get(body) ?? [])]) this.setCollisionsBetween(body, other, true);
     this.bodyList.splice(index, 1);
     this.syncedList.splice(index, 1);
+    this.posedByHand.delete(body);
     if (body.object) this.bodiesByObject.delete(body.object);
     if (body.instance) this.bodiesByInstance.get(body.instance.mesh)?.delete(body.instance.index);
     this.backend.removeBody(body);
@@ -310,6 +322,11 @@ export class World implements StepSettings {
       }
     }
     this.backend.setCollisionsBetween(bodyA, bodyB, enabled);
+  }
+
+  /** @internal Called by a body in this world given a pose by `setPose`, for queries to see at once. */
+  bodyPosed(body: Body): void {
+    this.posedByHand.add(body);
   }
 
   /** @internal Called by a body in this world when its mass properties or colliders change. */
@@ -378,12 +395,16 @@ export class World implements StepSettings {
     const syncedList = this.syncedList;
     if (this.leftBe.length < bodies.length) this.leftBe = new Uint8Array(Math.max(bodies.length, 2 * this.leftBe.length));
     const leftBe = this.leftBe;
+    let behaviorsRun = false;
+    let loadsWaiting = false;
     for (let index = 0; index < bodies.length; index++) {
       const body = bodies[index]!;
       const synced = syncedList[index]!;
+      if (body.behaviors.length > 0) behaviorsRun = true;
       // still scenery the step has nothing to do for, which is most of the bodies of many scenes
       if (isUntouchedStatic(body, synced)) {
         leftBe[index] = 1;
+        if (!hasNoLoads(body)) loadsWaiting = true;
         continue;
       }
       leftBe[index] = 0;
@@ -392,12 +413,29 @@ export class World implements StepSettings {
       body.beginStep();
       this.writeChanges(body, synced);
     }
-    for (const plugin of this.pluginList) plugin.beforeStep?.(this, timestep);
-    for (const body of bodies) {
-      for (const behavior of body.behaviors) behavior.fixedUpdate(body, timestep, this);
+    let pluginsRun = false;
+    // every change by hand is passed on now: queries during the step needn't look for more
+    this.posesLookedAtAfterStep = this.completedSteps;
+    this.posedByHand.clear();
+    for (const plugin of this.pluginList) {
+      if (!plugin.beforeStep) continue;
+      pluginsRun = true;
+      plugin.beforeStep(this, timestep);
     }
-    for (const plugin of this.pluginList) plugin.applyForces?.(this, timestep);
+    if (behaviorsRun) {
+      for (const body of bodies) {
+        for (const behavior of body.behaviors) behavior.fixedUpdate(body, timestep, this);
+      }
+    }
+    for (const plugin of this.pluginList) {
+      if (!plugin.applyForces) continue;
+      pluginsRun = true;
+      plugin.applyForces(this, timestep);
+    }
+    // a behaviour or a plugin may have moved, or pushed, a body left be, or a force waits on one: only then look again
+    const mayHaveTouched = behaviorsRun || pluginsRun || loadsWaiting;
     for (let index = 0; index < bodies.length; index++) {
+      if (leftBe[index] && !mayHaveTouched) continue;
       const body = bodies[index]!;
       const synced = syncedList[index]!;
       if (leftBe[index] && !isUntouchedStatic(body, synced)) {
@@ -440,19 +478,26 @@ export class World implements StepSettings {
   }
 
   /**
-   * Lets the backend see poses changed by hand since it last had them before it answers a query:
-   * a look at every body, about 10 ns each.
+   * Lets the backend see poses changed by hand before it answers a query: at the first query after
+   * a step, a look at every body, about 10 ns each; after it, only those `setPose` has moved.
    */
   private writePosesForQuery(): void {
-    const bodies = this.bodyList;
-    const syncedList = this.syncedList;
-    for (let index = 0; index < bodies.length; index++) {
-      const body = bodies[index]!;
-      const synced = syncedList[index]!;
-      if (synced.hasPoseOf(body)) continue;
-      this.backend.writePose(body);
-      synced.copyPose(body);
+    if (this.posesLookedAtAfterStep !== this.completedSteps) {
+      this.posesLookedAtAfterStep = this.completedSteps;
+      this.posedByHand.clear();
+      const bodies = this.bodyList;
+      const syncedList = this.syncedList;
+      for (let index = 0; index < bodies.length; index++) this.writePoseIfChanged(bodies[index]!, syncedList[index]!);
+      return;
     }
+    for (const body of this.posedByHand) this.writePoseIfChanged(body, this.syncedOf.get(body)!);
+    this.posedByHand.clear();
+  }
+
+  private writePoseIfChanged(body: Body, synced: SyncedMotion): void {
+    if (synced.hasPoseOf(body)) return;
+    this.backend.writePose(body);
+    synced.copyPose(body);
   }
 
   /** Passes on whatever about the body's motion and sleep has changed since the backend last had it. */
@@ -492,6 +537,12 @@ export class World implements StepSettings {
     for (const body of [...this.bodyList]) this.removeBody(body);
     this.backend.dispose?.();
   }
+}
+
+/** Whether no force or torque waits to be passed on for `body`. */
+function hasNoLoads(body: Body): boolean {
+  const { force, torque } = body;
+  return force.x === 0 && force.y === 0 && force.z === 0 && torque.x === 0 && torque.y === 0 && torque.z === 0;
 }
 
 /** Whether `body` is static, and nothing has moved, woken or put it to sleep since the backend last had it. */

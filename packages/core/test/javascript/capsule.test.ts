@@ -155,7 +155,7 @@ describe('capsules in a world', () => {
     const world = new World();
     const tilt = 0.25;
     world.addBody(new Body({ type: 'static', colliders: [new PlaneCollider({ friction: 0.9, rotation: new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), tilt) })] }));
-    const shape = new CapsuleCollider({ radius: 0.25, length: 1, friction: 0.9 });
+    const shape = new CapsuleCollider({ radius: 0.25, length: 1, friction: 0.9, rollingResistance: 0 });
     const massProperties = shape.massProperties({ density: 500 });
     const up = new Vector3(0, Math.cos(tilt), Math.sin(tilt));
     // lying across the slope, along x, so it rolls down toward +z

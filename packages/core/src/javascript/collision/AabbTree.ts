@@ -10,6 +10,13 @@ import type { Vector3 } from 'three';
 
 interface TreeNode<Item> {
   readonly box: Box3;
+  /** The box again, as plain numbers on the node, for the sweeps' inner loop: kept with it by `mirror`. */
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
   parent: TreeNode<Item> | undefined;
   left: TreeNode<Item> | undefined;
   right: TreeNode<Item> | undefined;
@@ -25,6 +32,17 @@ const PADDING = 0.1;
 
 const merged = new Box3();
 
+/** Copies `node`'s box, or `box` as it has just been given, into the numbers on the node. */
+function mirror<Node extends TreeNode<unknown>>(node: Node, box: Box3 = node.box): Node {
+  node.minX = box.min.x;
+  node.minY = box.min.y;
+  node.minZ = box.min.z;
+  node.maxX = box.max.x;
+  node.maxY = box.max.y;
+  node.maxZ = box.max.z;
+  return node;
+}
+
 /** Half the surface area of a box: the cost of a node, by how likely a ray is to pass through it. */
 function halfArea(box: Box3): number {
   const sizeX = box.max.x - box.min.x;
@@ -39,24 +57,61 @@ export class AabbTree<Item> {
   private root: TreeNode<Item> | undefined;
   /** Reused by every traversal; queries don't run inside one another's visits. */
   private readonly stack: TreeNode<Item>[] = [];
+  /** Where the ray enters each node on the stack, for the sweeps. */
+  private readonly entries: number[] = [];
+  /** How many leaves there are, and how many have gone in (or moved) since the tree was last built afresh. */
+  private leafCount = 0;
+  private insertedSinceRebuild = 0;
 
-  /** Adds `item` with its bounds; keep the leaf to move or remove it. */
-  insert(item: Item, box: Box3): TreeLeaf<Item> {
-    const leaf: TreeNode<Item> = { box: box.clone().expandByScalar(PADDING), parent: undefined, left: undefined, right: undefined, height: 0, item };
+  /**
+   * Adds `item` with its bounds, padded by `padding` so that small moves needn't move it in the
+   * tree (none for an item that won't move: a ray then passes through fewer boxes); keep the leaf
+   * to move or remove it.
+   */
+  insert(item: Item, box: Box3, padding = PADDING): TreeLeaf<Item> {
+    const leaf: TreeNode<Item> = mirror({ box: box.clone().expandByScalar(padding), minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0, parent: undefined, left: undefined, right: undefined, height: 0, item });
     this.insertLeaf(leaf);
+    this.leafCount++;
+    this.insertedSinceRebuild++;
     return leaf;
   }
 
   remove(leaf: TreeLeaf<Item>): void {
     this.removeLeaf(leaf);
     leaf.item = undefined;
+    this.leafCount--;
+  }
+
+  /**
+   * Builds the tree afresh, top down, if many leaves have gone in or moved since it last was: one
+   * built a leaf at a time depends on the order they came in, and can leave a ray many more boxes
+   * to pass through. The leaves stay as they are; only the branches above them change.
+   */
+  rebuildIfWorthwhile(): void {
+    if (this.leafCount < 8 || this.insertedSinceRebuild * 4 < this.leafCount) return;
+    this.insertedSinceRebuild = 0;
+    const leaves: TreeNode<Item>[] = [];
+    const unbounded: TreeNode<Item>[] = [];
+    const pending = this.root ? [this.root] : [];
+    while (pending.length > 0) {
+      const node = pending.pop()!;
+      if (node.height > 0) pending.push(node.left!, node.right!);
+      else if (Number.isFinite(node.minX + node.minY + node.minZ + node.maxX + node.maxY + node.maxZ)) leaves.push(node);
+      else unbounded.push(node);
+    }
+    let root = leaves.length > 0 ? buildTopDown(leaves, 0, leaves.length) : undefined;
+    // the unbounded, a plane's, a ray always enters: over the rest, one by one
+    for (const leaf of unbounded) root = root ? joined(root, leaf) : leaf;
+    if (root) root.parent = undefined;
+    this.root = root;
   }
 
   /** Gives the leaf its item's new bounds, moving it in the tree only if they leave its padded box. */
   move(leaf: TreeLeaf<Item>, box: Box3): void {
     if (leaf.box.containsBox(box)) return;
+    this.insertedSinceRebuild++;
     this.removeLeaf(leaf);
-    leaf.box.copy(box).expandByScalar(PADDING);
+    mirror(leaf, leaf.box.copy(box).expandByScalar(PADDING));
     this.insertLeaf(leaf);
   }
 
@@ -96,20 +151,90 @@ export class AabbTree<Item> {
     const growY = halfSize?.y ?? 0;
     const growZ = halfSize?.z ?? 0;
     let reach = maxDistance;
+    const originX = origin.x;
+    const originY = origin.y;
+    const originZ = origin.z;
+    // along an axis the ray doesn't move along, it is inside the slab all the way or not at all
+    const alongX = Number.isFinite(inverseX);
+    const alongY = Number.isFinite(inverseY);
+    const alongZ = Number.isFinite(inverseZ);
+    /** The slab test: how far along the ray it enters a node's box, where it is inside the box along every axis at once; Infinity if never, 0 if it starts inside. */
+    const enterOf = (node: TreeNode<Item>): number => {
+      let enter = 0;
+      let exit = Infinity;
+      if (alongX) {
+        const toLow = (node.minX - growX - originX) * inverseX;
+        const toHigh = (node.maxX + growX - originX) * inverseX;
+        if (toLow < toHigh) {
+          if (toLow > enter) enter = toLow;
+          if (toHigh < exit) exit = toHigh;
+        } else {
+          if (toHigh > enter) enter = toHigh;
+          if (toLow < exit) exit = toLow;
+        }
+      } else if (originX < node.minX - growX || originX > node.maxX + growX) return Infinity;
+      if (alongY) {
+        const toLow = (node.minY - growY - originY) * inverseY;
+        const toHigh = (node.maxY + growY - originY) * inverseY;
+        if (toLow < toHigh) {
+          if (toLow > enter) enter = toLow;
+          if (toHigh < exit) exit = toHigh;
+        } else {
+          if (toHigh > enter) enter = toHigh;
+          if (toLow < exit) exit = toLow;
+        }
+      } else if (originY < node.minY - growY || originY > node.maxY + growY) return Infinity;
+      if (alongZ) {
+        const toLow = (node.minZ - growZ - originZ) * inverseZ;
+        const toHigh = (node.maxZ + growZ - originZ) * inverseZ;
+        if (toLow < toHigh) {
+          if (toLow > enter) enter = toLow;
+          if (toHigh < exit) exit = toHigh;
+        } else {
+          if (toHigh > enter) enter = toHigh;
+          if (toLow < exit) exit = toLow;
+        }
+      } else if (originZ < node.minZ - growZ || originZ > node.maxZ + growZ) return Infinity;
+      return enter <= exit ? enter : Infinity;
+    };
     const stack = this.stack;
+    const entries = this.entries;
     stack.length = 0;
+    entries.length = 0;
     stack.push(this.root);
+    entries.push(enterOf(this.root));
     while (stack.length > 0) {
       const node = stack.pop()!;
-      const box = node.box;
-      // the slab test: where the ray is inside the box along each axis, overlapped
-      const enter = slabEnter(origin, inverseX, inverseY, inverseZ, box.min.x - growX, box.min.y - growY, box.min.z - growZ, box.max.x + growX, box.max.y + growY, box.max.z + growZ);
-      if (enter > reach) continue;
+      // where the ray enters it, as found when it was pushed: a nearer find since may rule it out
+      if (entries.pop()! > reach) continue;
       if (node.height === 0) {
         reach = Math.min(reach, visit(node.item!, reach));
         continue;
       }
-      stack.push(node.left!, node.right!);
+      // the nearer child on top, to be looked in first: what it finds cuts the further one short
+      const left = node.left!;
+      const right = node.right!;
+      const enterLeft = enterOf(left);
+      const enterRight = enterOf(right);
+      if (enterLeft <= enterRight) {
+        if (enterRight <= reach) {
+          stack.push(right);
+          entries.push(enterRight);
+        }
+        if (enterLeft <= reach) {
+          stack.push(left);
+          entries.push(enterLeft);
+        }
+      } else {
+        if (enterLeft <= reach) {
+          stack.push(left);
+          entries.push(enterLeft);
+        }
+        if (enterRight <= reach) {
+          stack.push(right);
+          entries.push(enterRight);
+        }
+      }
     }
   }
 
@@ -135,7 +260,7 @@ export class AabbTree<Item> {
       sibling = costLeft < costRight ? left : right;
     }
     const oldParent = sibling.parent;
-    const parent: TreeNode<Item> = { box: sibling.box.clone().union(leaf.box), parent: oldParent, left: sibling, right: leaf, height: sibling.height + 1, item: undefined };
+    const parent: TreeNode<Item> = mirror({ box: sibling.box.clone().union(leaf.box), minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0, parent: oldParent, left: sibling, right: leaf, height: sibling.height + 1, item: undefined });
     sibling.parent = parent;
     leaf.parent = parent;
     if (!oldParent) this.root = parent;
@@ -171,7 +296,7 @@ export class AabbTree<Item> {
     while (node) {
       node = this.balance(node);
       node.height = 1 + Math.max(node.left!.height, node.right!.height);
-      node.box.copy(node.left!.box).union(node.right!.box);
+      mirror(node, node.box.copy(node.left!.box).union(node.right!.box));
       node = node.parent;
     }
   }
@@ -204,49 +329,135 @@ export class AabbTree<Item> {
     else node.right = given;
     given.parent = node;
     node.height = 1 + Math.max(short.height, given.height);
-    node.box.copy(short.box).union(given.box);
+    mirror(node, node.box.copy(short.box).union(given.box));
     tall.height = 1 + Math.max(node.height, kept.height);
-    tall.box.copy(node.box).union(kept.box);
+    mirror(tall, tall.box.copy(node.box).union(kept.box));
     return tall;
   }
 }
 
-/** Where the ray last entered and first leaves the slabs tested so far, along it. */
-let slabEnterDistance = 0;
-let slabExitDistance = Infinity;
+/** How many bins the top-down build sorts leaves into along an axis, to choose where to split them. */
+const BINS = 12;
+const binCounts = new Int32Array(BINS);
+const binBounds = new Float64Array(BINS * 6);
+const belowBounds = new Float64Array(BINS * 6);
+const runningBounds = new Float64Array(6);
 
-/** Narrows the stretch of the ray inside the slabs to this axis's, given the ray's start and inverse direction along it; false once nothing is left. */
-function clipToSlab(start: number, inverse: number, low: number, high: number): boolean {
-  if (!Number.isFinite(inverse)) return start >= low && start <= high;
-  const toLow = (low - start) * inverse;
-  const toHigh = (high - start) * inverse;
-  const near = toLow < toHigh ? toLow : toHigh;
-  const far = toLow < toHigh ? toHigh : toLow;
-  if (near > slabEnterDistance) slabEnterDistance = near;
-  if (far < slabExitDistance) slabExitDistance = far;
-  return slabEnterDistance <= slabExitDistance;
+/** A new branch over `left` and `right`. */
+function joined<Item>(left: TreeNode<Item>, right: TreeNode<Item>): TreeNode<Item> {
+  const parent: TreeNode<Item> = mirror({ box: left.box.clone().union(right.box), minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0, parent: undefined, left, right, height: 1 + Math.max(left.height, right.height), item: undefined });
+  left.parent = parent;
+  right.parent = parent;
+  return parent;
+}
+
+function centreOf(node: TreeNode<unknown>, axis: number): number {
+  return axis === 0 ? node.minX + node.maxX : axis === 1 ? node.minY + node.maxY : node.minZ + node.maxZ;
+}
+
+/** Half the surface area of the box held in `bounds` from `at`: min x, y, z, then max x, y, z. */
+function halfAreaOf(bounds: Float64Array, at: number): number {
+  const sizeX = bounds[at + 3]! - bounds[at]!;
+  const sizeY = bounds[at + 4]! - bounds[at + 1]!;
+  const sizeZ = bounds[at + 5]! - bounds[at + 2]!;
+  return sizeX * sizeY + sizeY * sizeZ + sizeZ * sizeX;
+}
+
+function emptyBounds(bounds: Float64Array, at: number): void {
+  bounds.fill(Infinity, at, at + 3);
+  bounds.fill(-Infinity, at + 3, at + 6);
+}
+
+/** Grows the box in `bounds` (from 0) to hold the one in `other` from `at`. */
+function unionInto(bounds: Float64Array, other: Float64Array, at: number): void {
+  for (let value = 0; value < 3; value++) {
+    bounds[value] = Math.min(bounds[value]!, other[at + value]!);
+    bounds[3 + value] = Math.max(bounds[3 + value]!, other[at + 3 + value]!);
+  }
+}
+
+function growBounds(bounds: Float64Array, at: number, node: TreeNode<unknown>): void {
+  bounds[at] = Math.min(bounds[at]!, node.minX);
+  bounds[at + 1] = Math.min(bounds[at + 1]!, node.minY);
+  bounds[at + 2] = Math.min(bounds[at + 2]!, node.minZ);
+  bounds[at + 3] = Math.max(bounds[at + 3]!, node.maxX);
+  bounds[at + 4] = Math.max(bounds[at + 4]!, node.maxY);
+  bounds[at + 5] = Math.max(bounds[at + 5]!, node.maxZ);
 }
 
 /**
- * How far along a ray from `origin` it enters the box from `minimum` to `maximum`, given the
- * inverses of its direction's components: Infinity if it misses, 0 if it starts inside.
+ * A tree over `leaves` from `start` to `end`, built from the top: each group split in two where
+ * the surface area heuristic says a ray will pass through least, among the bin boundaries along
+ * the axis their centres spread furthest on (as Box2D rebuilds its static tree).
  */
-function slabEnter(
-  origin: Vector3,
-  inverseX: number,
-  inverseY: number,
-  inverseZ: number,
-  minimumX: number,
-  minimumY: number,
-  minimumZ: number,
-  maximumX: number,
-  maximumY: number,
-  maximumZ: number,
-): number {
-  slabEnterDistance = 0;
-  slabExitDistance = Infinity;
-  if (!clipToSlab(origin.x, inverseX, minimumX, maximumX)) return Infinity;
-  if (!clipToSlab(origin.y, inverseY, minimumY, maximumY)) return Infinity;
-  if (!clipToSlab(origin.z, inverseZ, minimumZ, maximumZ)) return Infinity;
-  return slabEnterDistance;
+function buildTopDown<Item>(leaves: TreeNode<Item>[], start: number, end: number): TreeNode<Item> {
+  if (end - start === 1) return leaves[start]!;
+  // where the leaves' centres spread, and along which axis furthest
+  let axis = 0;
+  let lowest = 0;
+  let spread = -1;
+  for (let candidate = 0; candidate < 3; candidate++) {
+    let low = Infinity;
+    let high = -Infinity;
+    for (let index = start; index < end; index++) {
+      const centre = centreOf(leaves[index]!, candidate);
+      if (centre < low) low = centre;
+      if (centre > high) high = centre;
+    }
+    if (high - low > spread) {
+      spread = high - low;
+      axis = candidate;
+      lowest = low;
+    }
+  }
+  let middle = (start + end) >> 1;
+  if (spread > 0) {
+    // into bins by centre, then the split between bins that costs least
+    binCounts.fill(0);
+    for (let bin = 0; bin < BINS; bin++) emptyBounds(binBounds, bin * 6);
+    const binOf = (node: TreeNode<Item>) => Math.min(BINS - 1, Math.floor(((centreOf(node, axis) - lowest) / spread) * BINS));
+    for (let index = start; index < end; index++) {
+      const bin = binOf(leaves[index]!);
+      binCounts[bin]!++;
+      growBounds(binBounds, bin * 6, leaves[index]!);
+    }
+    // the bounds of bins 0 to `bin`, for the side below each boundary
+    emptyBounds(runningBounds, 0);
+    for (let bin = 0; bin < BINS; bin++) {
+      unionInto(runningBounds, binBounds, bin * 6);
+      belowBounds.set(runningBounds, bin * 6);
+    }
+    // and from the top down, the side above, the cost of each split with it
+    let bestCost = Infinity;
+    let bestBoundary = -1;
+    emptyBounds(runningBounds, 0);
+    let countAbove = 0;
+    for (let boundary = BINS - 1; boundary >= 1; boundary--) {
+      unionInto(runningBounds, binBounds, boundary * 6);
+      countAbove += binCounts[boundary]!;
+      const countBelow = end - start - countAbove;
+      if (countAbove === 0 || countBelow === 0) continue;
+      const cost = halfAreaOf(belowBounds, (boundary - 1) * 6) * countBelow + halfAreaOf(runningBounds, 0) * countAbove;
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestBoundary = boundary;
+      }
+    }
+    if (bestBoundary > 0) {
+      // the leaves below the boundary first, then those above
+      let low = start;
+      let high = end - 1;
+      while (low <= high) {
+        if (binOf(leaves[low]!) < bestBoundary) low++;
+        else {
+          const swap = leaves[low]!;
+          leaves[low] = leaves[high]!;
+          leaves[high] = swap;
+          high--;
+        }
+      }
+      middle = low;
+    }
+  }
+  return joined(buildTopDown(leaves, start, middle), buildTopDown(leaves, middle, end));
 }

@@ -111,6 +111,7 @@ export class SceneQueries {
     }
     for (const body of this.changed) this.refitBody(body);
     this.changed.clear();
+    this.tree.rebuildIfWorthwhile();
   }
 
   private refitBody(body: SolverBody): void {
@@ -121,7 +122,8 @@ export class SceneQueries {
     }
     boundsOf(body, bodyBounds);
     if (leaf) this.tree.move(leaf, bodyBounds);
-    else this.leaves.set(body, this.tree.insert(body, bodyBounds));
+    // a static body stays put: unpadded, which rays pass through fewer of
+    else this.leaves.set(body, this.tree.insert(body, bodyBounds, body.type === 'static' ? 0 : undefined));
   }
 
   private removeLeaf(body: SolverBody): void {

@@ -116,7 +116,7 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('mesh c
     const up = new Vector3(0, 1, 0).applyQuaternion(turn);
     const downhill = new Vector3(-1, 0, 0).applyQuaternion(turn);
     const ball = world.addBody(
-      new Body({ massProperties: MassProperties.sphere(0.5, 1), position: new Vector3(12, 0, 0.3).applyQuaternion(turn).addScaledVector(up, 0.5), canSleep: false, colliders: [new SphereCollider({ radius: 0.5, friction: 0.9 })] }),
+      new Body({ massProperties: MassProperties.sphere(0.5, 1), position: new Vector3(12, 0, 0.3).applyQuaternion(turn).addScaledVector(up, 0.5), canSleep: false, colliders: [new SphereCollider({ radius: 0.5, friction: 0.9, rollingResistance: 0 })] }),
     );
     for (let step = 0; step < 30; step++) world.fixedStep();
     const speedBefore = ball.velocity.dot(downhill);

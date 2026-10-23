@@ -206,8 +206,9 @@ world.addJoint(new DistanceJoint({ bodyA: lamp, anchorA: hook, anchorB: ceilingP
   (a trigger volume), and adds no mass; `world.inSensor(sensor)` lists what is in it now.
 - Friction is Coulomb's, decided for each patch of contact (such as a box's face on the floor),
   so boxes stay put on slopes gentler than their friction angle and tall stacks stand still.
-  Spheres and capsules roll without slipping or sinking in, and with `rollingResistance` they
-  slow down and come to rest, as a real ball does, instead of rolling for ever.
+  Spheres, capsules, cylinders and cones roll without slipping or sinking in, and their
+  `rollingResistance` (0.02 unless given another) slows them down to rest, as a real ball's is,
+  instead of rolling for ever.
 
 ### Scene queries
 
@@ -227,8 +228,9 @@ const caught = world.overlap(new SphereCollider({ radius: 4 }), blastCentre);
   distances exactly with GJK, round shapes included.
 - All of them take collision groups (`collidesWith`), bodies to `exclude`, a `filter` function, and
   `includeSensors` (sensors are skipped otherwise), and see bodies where they are, including ones
-  you moved by hand since the last step. They search a bounding volume tree of the colliders;
-  noticing hand-moved bodies costs a look at every body, about 10 ns each, per query.
+  you moved by hand: the first query after a step looks at every body for those (about 10 ns
+  each); after it, until the next step, move a body with `setPose` for queries to see it at once.
+  They search a bounding volume tree of the colliders.
 
 ### Joints
 

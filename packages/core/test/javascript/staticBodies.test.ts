@@ -25,11 +25,13 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('static
     // a ball thrown at it, which wakes it on the step it arrives
     world.addBody(new Body({ massProperties: MassProperties.sphere(0.2, 2), position: new Vector3(-3, 0.5, 0), velocity: new Vector3(12, 0, 0), colliders: [new SphereCollider({ radius: 0.2 })] }));
     let lowest = Infinity;
+    let woke = false;
     for (let step = 0; step < 90; step++) {
       world.fixedStep();
       lowest = Math.min(lowest, box.position.y);
+      woke ||= !box.isSleeping;
     }
-    expect(box.isSleeping).toBe(false);
+    expect(woke).toBe(true);
     expect(box.position.x).toBeGreaterThan(0.05);
     // never sank into the floor
     expect(lowest).toBeGreaterThan(0.49);

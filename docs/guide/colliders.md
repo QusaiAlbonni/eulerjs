@@ -83,7 +83,7 @@ body; `body.colliders` lists them.
 | `rotation` | identity | How it is turned in its body's frame. |
 | `friction` | 0.5 | Coulomb friction coefficient. Two colliders use the geometric mean of theirs. |
 | `restitution` | 0 | Bounciness, 0 (none) to 1 (perfectly elastic). Two colliders use the larger. |
-| `rollingResistance` | 0 | Resistance to rolling, as a share of the load. Two colliders use the larger. |
+| `rollingResistance` | 0.02 on round shapes, otherwise 0 | Resistance to rolling, as a share of the load. Two colliders use the larger. |
 | `collisionGroups` | 1 | Bit mask of the groups this collider is in. |
 | `collidesWith` | every group | Bit mask of the groups it collides with. |
 | `sensor` | false | Detects overlaps without pushing. See [Sensors](#sensors). |
@@ -247,6 +247,11 @@ ever on a flat floor. `rollingResistance` holds a rolling body back with a torqu
 times the contact force times its radius, as a real ball's deformation does, so it slows down
 and comes to rest; it also stops a body spinning on the spot. About 0.002 for steel on steel,
 0.01 for a ball on a hard floor, 0.05 or more for something soft. Two colliders use the larger.
+
+Those four shapes have `ROUND_ROLLING_RESISTANCE`, 0.02, unless given their own, so a barrel or
+a traffic cone knocked over comes to rest instead of rolling away for good: one knocked rolling
+at 1.5 m/s stops in about 12 s. Every other shape has 0. For an ideal ball that never slows,
+give it 0.
 
 ```ts
 new SphereCollider({ radius: 0.11, restitution: 0.7, rollingResistance: 0.01 }); // a football on grass would want more

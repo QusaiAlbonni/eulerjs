@@ -3,6 +3,7 @@ import type { BoxCollider } from '../../colliders/BoxCollider.js';
 import type { Collider, ColliderPose } from '../../colliders/Collider.js';
 import type { PlaneCollider } from '../../colliders/PlaneCollider.js';
 import type { SphereCollider } from '../../colliders/SphereCollider.js';
+import { FACE_PATCH_POINTS, reduceManifold } from './manifoldReduction.js';
 
 /**
  * Where two colliders touch, or nearly do. `normal` is a unit vector from B toward A (the way A
@@ -30,7 +31,8 @@ export type CollisionTest<ColliderA extends Collider = Collider, ColliderB exten
   margin: number,
 ) => void;
 
-const collisionTests = new Map<string, CollisionTest>();
+/** The tests by the first shape's name, then the second's: looked up for every pair of colliders, without making a key string for each. */
+const collisionTests = new Map<string, Map<string, CollisionTest>>();
 
 /**
  * Teaches the engine how two shapes collide. Register each pair once; the reverse order is
@@ -41,7 +43,9 @@ export function registerCollisionTest<ColliderA extends Collider, ColliderB exte
   shapeB: string,
   test: CollisionTest<ColliderA, ColliderB>,
 ): void {
-  collisionTests.set(`${shapeA}|${shapeB}`, test as CollisionTest);
+  let byOther = collisionTests.get(shapeA);
+  if (!byOther) collisionTests.set(shapeA, (byOther = new Map()));
+  byOther.set(shapeB, test as CollisionTest);
 }
 
 /**
@@ -49,12 +53,12 @@ export function registerCollisionTest<ColliderA extends Collider, ColliderB exte
  * None if they don't touch or no test is registered for the pair of shapes.
  */
 export function collide(colliderA: Collider, poseA: ColliderPose, colliderB: Collider, poseB: ColliderPose, contacts: ContactPoint[], margin = 0): void {
-  const forward = collisionTests.get(`${colliderA.shape}|${colliderB.shape}`);
+  const forward = collisionTests.get(colliderA.shape)?.get(colliderB.shape);
   if (forward) {
     forward(colliderA, poseA, colliderB, poseB, contacts, margin);
     return;
   }
-  const reverse = collisionTests.get(`${colliderB.shape}|${colliderA.shape}`);
+  const reverse = collisionTests.get(colliderB.shape)?.get(colliderA.shape);
   if (!reverse) return;
   const firstNew = contacts.length;
   reverse(colliderB, poseB, colliderA, poseA, contacts, margin);
@@ -155,17 +159,42 @@ interface OrientedBox {
   halfExtents: [number, number, number];
 }
 
-function orientedBox(box: BoxCollider, pose: ColliderPose): OrientedBox {
+// The box-box test's working space, reused from one pair to the next: a pile of boxes is tens of
+// thousands of pairs a second, and only their contacts need be new.
+const orientedBoxA: OrientedBox = { center: new Vector3(), axes: [new Vector3(), new Vector3(), new Vector3()], halfExtents: [0, 0, 0] };
+const orientedBoxB: OrientedBox = { center: new Vector3(), axes: [new Vector3(), new Vector3(), new Vector3()], halfExtents: [0, 0, 0] };
+const centerOffset = new Vector3();
+/** How each of B's axes lines up with each of A's, row by row: Aᵢ · Bⱼ at 3i + j. */
+const alignment = new Float64Array(9);
+/** B's centre from A's, along A's axes. */
+const offsetInA = new Float64Array(3);
+const bestEdgeAxis = new Vector3();
+const toIncident = new Vector3();
+const referenceNormal = new Vector3();
+const negatedSideNormal = new Vector3();
+const referenceFaceCenter = new Vector3();
+const incidentNormal = new Vector3();
+const incidentFaceCenter = new Vector3();
+const sideFirst = new Vector3();
+const sideSecond = new Vector3();
+const normalFromBToA = new Vector3();
+const onReferenceFace = new Vector3();
+const edgeMiddleA = new Vector3();
+const edgeMiddleB = new Vector3();
+/** A face clipped by four planes has at most eight corners: two pools of them, clipped from one into the other. */
+const clipPool = Array.from({ length: 8 }, () => new Vector3());
+const clipOtherPool = Array.from({ length: 8 }, () => new Vector3());
+
+function orientedBox(box: BoxCollider, pose: ColliderPose, target: OrientedBox): OrientedBox {
   const elements = pose.rotation.elements;
-  return {
-    center: pose.position.clone(),
-    axes: [
-      new Vector3(elements[0], elements[1], elements[2]),
-      new Vector3(elements[3], elements[4], elements[5]),
-      new Vector3(elements[6], elements[7], elements[8]),
-    ],
-    halfExtents: [box.halfExtents.x, box.halfExtents.y, box.halfExtents.z],
-  };
+  target.center.copy(pose.position);
+  target.axes[0].set(elements[0], elements[1], elements[2]);
+  target.axes[1].set(elements[3], elements[4], elements[5]);
+  target.axes[2].set(elements[6], elements[7], elements[8]);
+  target.halfExtents[0] = box.halfExtents.x;
+  target.halfExtents[1] = box.halfExtents.y;
+  target.halfExtents[2] = box.halfExtents.z;
+  return target;
 }
 
 /** How far a box reaches along a unit axis from its centre. */
@@ -173,93 +202,155 @@ function projectedRadius(box: OrientedBox, axis: Vector3): number {
   return box.halfExtents[0] * Math.abs(box.axes[0].dot(axis)) + box.halfExtents[1] * Math.abs(box.axes[1].dot(axis)) + box.halfExtents[2] * Math.abs(box.axes[2].dot(axis));
 }
 
-type SeparatingAxis = { kind: 'faceA' | 'faceB'; index: number; separation: number } | { kind: 'edge'; indexA: number; indexB: number; axis: Vector3; separation: number };
+/** How far apart two boxes are along a unit axis, their centres `offset` apart: negative when they overlap along it. */
+function separationAlong(boxA: OrientedBox, boxB: OrientedBox, offset: Vector3, axis: Vector3): number {
+  return Math.abs(offset.dot(axis)) - projectedRadius(boxA, axis) - projectedRadius(boxB, axis);
+}
 
 /**
  * Separating-axis test over the 15 candidate axes; then contacts from clipping the incident face
  * against the reference face, or from the closest points of two edges.
  */
 function boxBox(colliderA: BoxCollider, poseA: ColliderPose, colliderB: BoxCollider, poseB: ColliderPose, contacts: ContactPoint[], margin: number): void {
-  const boxA = orientedBox(colliderA, poseA);
-  const boxB = orientedBox(colliderB, poseB);
-  const centerOffset = new Vector3().subVectors(boxB.center, boxA.center);
-  const separationAlong = (axis: Vector3) => Math.abs(centerOffset.dot(axis)) - projectedRadius(boxA, axis) - projectedRadius(boxB, axis);
+  const boxA = orientedBox(colliderA, poseA, orientedBoxA);
+  const boxB = orientedBox(colliderB, poseB, orientedBoxB);
+  centerOffset.subVectors(boxB.center, boxA.center);
 
-  let bestFace: SeparatingAxis | undefined;
-  for (const [kind, box] of [['faceA', boxA], ['faceB', boxB]] as const) {
+  // A's faces, then B's
+  let faceIsA = true;
+  let faceIndex = -1;
+  let faceSeparation = -Infinity;
+  for (let side = 0; side < 2; side++) {
+    const box = side === 0 ? boxA : boxB;
     for (let index = 0; index < 3; index++) {
-      const separation = separationAlong(box.axes[index]!);
+      const separation = separationAlong(boxA, boxB, centerOffset, box.axes[index]!);
       if (separation > margin) return;
-      if (!bestFace || separation > bestFace.separation) bestFace = { kind, index, separation };
+      if (faceIndex === -1 || separation > faceSeparation) {
+        faceIsA = side === 0;
+        faceIndex = index;
+        faceSeparation = separation;
+      }
     }
   }
-  if (!bestFace) return;
-  const sizeTolerance = 0.01 * Math.min(...boxA.halfExtents, ...boxB.halfExtents);
-  let bestEdge: SeparatingAxis | undefined;
+  const sizeTolerance = 0.01 * Math.min(boxA.halfExtents[0], boxA.halfExtents[1], boxA.halfExtents[2], boxB.halfExtents[0], boxB.halfExtents[1], boxB.halfExtents[2]);
+  let edgeIndexA = -1;
+  let edgeIndexB = -1;
+  let edgeSeparation = -Infinity;
+  // The edge axes, Aᵢ × Bⱼ, worked out in A's frame from how each axis of B lines up with each of
+  // A's (Ericson, Real-Time Collision Detection, 4.4.1) rather than each made and measured in the
+  // world: a ninth of the dot products.
   for (let indexA = 0; indexA < 3; indexA++) {
+    offsetInA[indexA] = centerOffset.dot(boxA.axes[indexA]!);
+    for (let indexB = 0; indexB < 3; indexB++) alignment[3 * indexA + indexB] = boxA.axes[indexA]!.dot(boxB.axes[indexB]!);
+  }
+  for (let indexA = 0; indexA < 3; indexA++) {
+    // the axis has no part along Aᵢ: its parts along A's other two axes are these
+    const nextA = (indexA + 1) % 3;
+    const lastA = (indexA + 2) % 3;
     for (let indexB = 0; indexB < 3; indexB++) {
-      const axis = new Vector3().crossVectors(boxA.axes[indexA]!, boxB.axes[indexB]!);
-      const length = axis.length();
+      const nextB = (indexB + 1) % 3;
+      const lastB = (indexB + 2) % 3;
+      const alongNext = -alignment[3 * lastA + indexB]!;
+      const alongLast = alignment[3 * nextA + indexB]!;
+      const length = Math.sqrt(alongNext * alongNext + alongLast * alongLast);
       if (length < 1e-6) continue;
-      axis.divideScalar(length);
-      const separation = separationAlong(axis);
+      const reachA = boxA.halfExtents[nextA]! * Math.abs(alongNext) + boxA.halfExtents[lastA]! * Math.abs(alongLast);
+      const reachB = boxB.halfExtents[nextB]! * Math.abs(alignment[3 * indexA + lastB]!) + boxB.halfExtents[lastB]! * Math.abs(alignment[3 * indexA + nextB]!);
+      const separation = (Math.abs(offsetInA[nextA]! * alongNext + offsetInA[lastA]! * alongLast) - reachA - reachB) / length;
       if (separation > margin) return;
-      if (!bestEdge || separation > bestEdge.separation) bestEdge = { kind: 'edge', indexA, indexB, axis, separation };
+      if (edgeIndexA === -1 || separation > edgeSeparation) {
+        edgeIndexA = indexA;
+        edgeIndexB = indexB;
+        edgeSeparation = separation;
+      }
     }
   }
+  if (edgeIndexA !== -1) bestEdgeAxis.crossVectors(boxA.axes[edgeIndexA]!, boxB.axes[edgeIndexB]!).normalize();
 
   // Prefer faces: they give a whole patch of contacts, which is what keeps stacks steady.
-  if (bestEdge && bestEdge.kind === 'edge' && bestEdge.separation > bestFace.separation + sizeTolerance) {
-    edgeContact(boxA, boxB, bestEdge, centerOffset, contacts);
-  } else if (bestFace.kind === 'faceA') {
-    faceContacts(boxA, boxB, bestFace.index, true, contacts, margin);
-  } else if (bestFace.kind === 'faceB') {
-    faceContacts(boxB, boxA, bestFace.index, false, contacts, margin);
+  if (edgeIndexA !== -1 && edgeSeparation > faceSeparation + sizeTolerance) {
+    edgeContact(boxA, boxB, edgeIndexA, edgeIndexB, bestEdgeAxis, edgeSeparation, contacts);
+  } else if (faceIsA) {
+    faceContacts(boxA, boxB, faceIndex, true, contacts, margin);
+  } else {
+    faceContacts(boxB, boxA, faceIndex, false, contacts, margin);
   }
 }
 
 /** Contacts where a face of `reference` touches `incident`; `referenceIsA` says which collider each box is. */
 function faceContacts(reference: OrientedBox, incident: OrientedBox, axisIndex: number, referenceIsA: boolean, contacts: ContactPoint[], margin: number): void {
-  const toIncident = new Vector3().subVectors(incident.center, reference.center);
-  const referenceNormal = reference.axes[axisIndex]!.clone();
+  toIncident.subVectors(incident.center, reference.center);
+  referenceNormal.copy(reference.axes[axisIndex]!);
   if (referenceNormal.dot(toIncident) < 0) referenceNormal.negate();
-  const referenceFaceCenter = reference.center.clone().addScaledVector(referenceNormal, reference.halfExtents[axisIndex]!);
+  referenceFaceCenter.copy(reference.center).addScaledVector(referenceNormal, reference.halfExtents[axisIndex]!);
 
   // The incident face is the one facing most against the reference normal.
   let incidentAxis = 0;
   for (let index = 1; index < 3; index++) {
     if (Math.abs(incident.axes[index]!.dot(referenceNormal)) > Math.abs(incident.axes[incidentAxis]!.dot(referenceNormal))) incidentAxis = index;
   }
-  const incidentNormal = incident.axes[incidentAxis]!.clone();
+  incidentNormal.copy(incident.axes[incidentAxis]!);
   if (incidentNormal.dot(referenceNormal) > 0) incidentNormal.negate();
-  const incidentFaceCenter = incident.center.clone().addScaledVector(incidentNormal, incident.halfExtents[incidentAxis]!);
-  const [sideAxisFirst, sideAxisSecond] = [0, 1, 2].filter((index) => index !== incidentAxis) as [number, number];
-  const sideFirst = incident.axes[sideAxisFirst]!.clone().multiplyScalar(incident.halfExtents[sideAxisFirst]!);
-  const sideSecond = incident.axes[sideAxisSecond]!.clone().multiplyScalar(incident.halfExtents[sideAxisSecond]!);
-  let polygon = [
-    incidentFaceCenter.clone().add(sideFirst).add(sideSecond),
-    incidentFaceCenter.clone().add(sideFirst).sub(sideSecond),
-    incidentFaceCenter.clone().sub(sideFirst).sub(sideSecond),
-    incidentFaceCenter.clone().sub(sideFirst).add(sideSecond),
-  ];
+  incidentFaceCenter.copy(incident.center).addScaledVector(incidentNormal, incident.halfExtents[incidentAxis]!);
+  // the incident face's other two axes, in order
+  const sideAxisFirst = incidentAxis === 0 ? 1 : 0;
+  const sideAxisSecond = incidentAxis === 2 ? 1 : 2;
+  sideFirst.copy(incident.axes[sideAxisFirst]!).multiplyScalar(incident.halfExtents[sideAxisFirst]!);
+  sideSecond.copy(incident.axes[sideAxisSecond]!).multiplyScalar(incident.halfExtents[sideAxisSecond]!);
+  let polygon = clipPool;
+  let other = clipOtherPool;
+  polygon[0]!.copy(incidentFaceCenter).add(sideFirst).add(sideSecond);
+  polygon[1]!.copy(incidentFaceCenter).add(sideFirst).sub(sideSecond);
+  polygon[2]!.copy(incidentFaceCenter).sub(sideFirst).sub(sideSecond);
+  polygon[3]!.copy(incidentFaceCenter).sub(sideFirst).add(sideSecond);
+  let count = 4;
 
   // Clip it to the four side planes of the reference face.
-  for (const sideAxis of [0, 1, 2].filter((index) => index !== axisIndex)) {
+  for (let sideAxis = 0; sideAxis < 3; sideAxis++) {
+    if (sideAxis === axisIndex) continue;
     const sideNormal = reference.axes[sideAxis]!;
     const centerAlongSide = reference.center.dot(sideNormal);
     const halfWidth = reference.halfExtents[sideAxis]!;
-    polygon = clipPolygon(polygon, sideNormal, centerAlongSide + halfWidth);
-    polygon = clipPolygon(polygon, sideNormal.clone().negate(), -centerAlongSide + halfWidth);
+    count = clipInto(polygon, count, sideNormal, centerAlongSide + halfWidth, other);
+    [polygon, other] = [other, polygon];
+    count = clipInto(polygon, count, negatedSideNormal.copy(sideNormal).negate(), -centerAlongSide + halfWidth, other);
+    [polygon, other] = [other, polygon];
   }
 
-  const normalFromBToA = referenceIsA ? referenceNormal.clone().negate() : referenceNormal;
-  for (const point of polygon) {
+  normalFromBToA.copy(referenceNormal);
+  if (referenceIsA) normalFromBToA.negate();
+  const firstNew = contacts.length;
+  for (let index = 0; index < count; index++) {
+    const point = polygon[index]!;
     const separation = difference.subVectors(point, referenceFaceCenter).dot(referenceNormal);
     if (separation > margin) continue;
-    const onReferenceFace = point.clone().addScaledVector(referenceNormal, -separation);
+    onReferenceFace.copy(point).addScaledVector(referenceNormal, -separation);
     if (referenceIsA) addContact(contacts, onReferenceFace, point, normalFromBToA, -separation);
     else addContact(contacts, point, onReferenceFace, normalFromBToA, -separation);
   }
+  // a turned face clips to as many as eight corners: the four that span them do as well
+  if (contacts.length - firstNew > FACE_PATCH_POINTS) {
+    const patch = contacts.splice(firstNew);
+    reduceManifold(patch, FACE_PATCH_POINTS);
+    for (const contact of patch) contacts.push(contact);
+  }
+}
+
+/**
+ * Sutherland–Hodgman as `clipPolygon`, from the `count` corners of `polygon` into the vectors of
+ * `target`, which it overwrites: the number of corners kept.
+ */
+function clipInto(polygon: Vector3[], count: number, normal: Vector3, offset: number, target: Vector3[]): number {
+  let kept = 0;
+  for (let index = 0; index < count; index++) {
+    const current = polygon[index]!;
+    const next = polygon[(index + 1) % count]!;
+    const currentDistance = current.dot(normal) - offset;
+    const nextDistance = next.dot(normal) - offset;
+    if (currentDistance <= 0) target[kept++]!.copy(current);
+    if (currentDistance * nextDistance < 0) target[kept++]!.copy(current).lerp(next, currentDistance / (currentDistance - nextDistance));
+  }
+  return kept;
 }
 
 /** Sutherland–Hodgman: keeps the part of `polygon` where point · normal <= offset. */
@@ -277,25 +368,18 @@ export function clipPolygon(polygon: Vector3[], normal: Vector3, offset: number)
   return clipped;
 }
 
-function edgeContact(boxA: OrientedBox, boxB: OrientedBox, edge: Extract<SeparatingAxis, { kind: 'edge' }>, centerOffset: Vector3, contacts: ContactPoint[]): void {
-  const axis = edge.axis.clone();
+function edgeContact(boxA: OrientedBox, boxB: OrientedBox, indexA: number, indexB: number, edgeAxisFound: Vector3, separation: number, contacts: ContactPoint[]): void {
+  const axis = edgeAxisFound;
   if (axis.dot(centerOffset) < 0) axis.negate(); // from A toward B
   // The edge of each box that reaches furthest toward the other.
-  const edgeMiddleA = boxA.center.clone();
-  const edgeMiddleB = boxB.center.clone();
+  edgeMiddleA.copy(boxA.center);
+  edgeMiddleB.copy(boxB.center);
   for (let index = 0; index < 3; index++) {
-    if (index !== edge.indexA) edgeMiddleA.addScaledVector(boxA.axes[index]!, Math.sign(boxA.axes[index]!.dot(axis)) * boxA.halfExtents[index]!);
-    if (index !== edge.indexB) edgeMiddleB.addScaledVector(boxB.axes[index]!, -Math.sign(boxB.axes[index]!.dot(axis)) * boxB.halfExtents[index]!);
+    if (index !== indexA) edgeMiddleA.addScaledVector(boxA.axes[index]!, Math.sign(boxA.axes[index]!.dot(axis)) * boxA.halfExtents[index]!);
+    if (index !== indexB) edgeMiddleB.addScaledVector(boxB.axes[index]!, -Math.sign(boxB.axes[index]!.dot(axis)) * boxB.halfExtents[index]!);
   }
-  const [pointA, pointB] = closestPointsOnSegments(
-    edgeMiddleA,
-    boxA.axes[edge.indexA]!,
-    boxA.halfExtents[edge.indexA]!,
-    edgeMiddleB,
-    boxB.axes[edge.indexB]!,
-    boxB.halfExtents[edge.indexB]!,
-  );
-  addContact(contacts, pointA, pointB, axis.negate(), -edge.separation);
+  const [pointA, pointB] = closestPointsOnSegments(edgeMiddleA, boxA.axes[indexA]!, boxA.halfExtents[indexA]!, edgeMiddleB, boxB.axes[indexB]!, boxB.halfExtents[indexB]!);
+  addContact(contacts, pointA, pointB, axis.negate(), -separation);
 }
 
 /** Closest points of two segments, each given by its middle, unit direction and half length. */

@@ -25,6 +25,7 @@ interface BallOptions {
   radius?: number;
   mass?: number;
   friction?: number;
+  rollingResistance?: number;
   velocity?: Vector3;
   canSleep?: boolean;
   damping?: number;
@@ -40,7 +41,7 @@ function ball(world: World, position: Vector3, options: BallOptions = {}): Body 
       canSleep: options.canSleep ?? false,
       linearDamping: options.damping,
       angularDamping: options.damping,
-      colliders: [new SphereCollider({ radius, friction: options.friction })],
+      colliders: [new SphereCollider({ radius, friction: options.friction, rollingResistance: options.rollingResistance })],
     }),
   );
 }
@@ -65,7 +66,8 @@ describe('rotation and friction together', () => {
   it('turns a sliding ball into a rolling one at 5/7 of its speed, without it sinking into the ground', () => {
     const world = new World();
     ground(world, { friction: 0.3 });
-    const body = ball(world, new Vector3(0, 0.5, 0), { velocity: new Vector3(5, 0, 0), friction: 0.3 });
+    // an ideal ball, with nothing to slow it once rolling
+    const body = ball(world, new Vector3(0, 0.5, 0), { velocity: new Vector3(5, 0, 0), friction: 0.3, rollingResistance: 0 });
     let lowest = Infinity;
     runFor(world, 3, () => {
       lowest = Math.min(lowest, body.position.y);
@@ -82,7 +84,7 @@ describe('rotation and friction together', () => {
     ground(world, { friction: 0.8, tilt: new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), tilt) });
     const up = new Vector3(-Math.sin(tilt), Math.cos(tilt), 0);
     const downhill = new Vector3(-Math.cos(tilt), -Math.sin(tilt), 0);
-    const body = ball(world, up.clone().multiplyScalar(0.5), { friction: 0.8 });
+    const body = ball(world, up.clone().multiplyScalar(0.5), { friction: 0.8, rollingResistance: 0 });
     runFor(world, 0.5);
     const speedBefore = body.velocity.dot(downhill);
     runFor(world, 1);

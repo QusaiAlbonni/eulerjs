@@ -26,7 +26,7 @@ export { SixDofJoint } from './joints/SixDofJoint.js';
 export type { AxisMotion, JointDrive, JointFrame, JointMeasurement, OrientationDrive, SixAxes, SixDofJointOptions } from './joints/SixDofJoint.js';
 export { ConeTwistJoint, FixedJoint, HingeJoint, SliderJoint, TargetJoint } from './joints/presets.js';
 export type { ConeTwistJointOptions, HingeJointOptions, JointLimits, SliderJointOptions, TargetJointOptions } from './joints/presets.js';
-export { Collider } from './colliders/Collider.js';
+export { Collider, ROUND_ROLLING_RESISTANCE } from './colliders/Collider.js';
 export type { ColliderOptions, ColliderPose } from './colliders/Collider.js';
 export { BoxCollider } from './colliders/BoxCollider.js';
 export type { BoxColliderOptions } from './colliders/BoxCollider.js';

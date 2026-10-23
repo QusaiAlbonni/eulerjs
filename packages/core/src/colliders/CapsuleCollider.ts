@@ -2,7 +2,7 @@ import { Matrix3, Matrix4, Vector3 } from 'three';
 import type { Box3 } from 'three';
 import { MassProperties } from '../MassProperties.js';
 import type { MassSpecification } from '../MassProperties.js';
-import { Collider } from './Collider.js';
+import { Collider, ROUND_ROLLING_RESISTANCE } from './Collider.js';
 import type { ColliderOptions, ColliderPose } from './Collider.js';
 
 export interface CapsuleColliderOptions extends ColliderOptions {
@@ -24,7 +24,7 @@ export class CapsuleCollider extends Collider {
   length: number;
 
   constructor(options: CapsuleColliderOptions) {
-    super(options);
+    super(options, ROUND_ROLLING_RESISTANCE);
     if (!(options.radius > 0)) throw new RangeError(`radius must be positive, got ${options.radius}`);
     if (!(options.length >= 0)) throw new RangeError(`length must not be negative, got ${options.length}`);
     this.radius = options.radius;

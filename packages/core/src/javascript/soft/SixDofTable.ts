@@ -3,6 +3,7 @@ import type { JointFrame, SixDofJoint } from '../../joints/SixDofJoint.js';
 import { coneLimit, driveGains, invertSymmetric, driveImpulse, driveLimit, frameAxis, hasSpring, swingAndTwist, swingCone, turnsFreely, turnToTarget } from '../../joints/sixDofMath.js';
 import type { FrameTurn } from '../../joints/sixDofMath.js';
 import type { SolverBody } from '../SolverBody.js';
+import { BallJointTable } from './BallJointTable.js';
 import type { BodyTable } from './BodyTable.js';
 import { RIGID } from './softness.js';
 import type { Softness } from './softness.js';
@@ -78,36 +79,61 @@ const worldCenter = new Vector3();
 
 export class SixDofTable {
   private rows: JointRow[] = [];
-  private readonly kept = new Map<SixDofJoint, Float64Array>();
+  /** The ball joints that are nothing more, solved apart, and their rows in the same order. */
+  private readonly balls = new BallJointTable();
+  private readonly ballRows: JointRow[] = [];
+  private readonly kept = new Map<SixDofJoint, JointRow>();
 
   prepare(joints: ReadonlyMap<SixDofJoint, readonly [SolverBody, SolverBody | undefined]>, bodies: BodyTable): void {
-    this.rows = [];
+    this.rows.length = 0;
+    this.ballRows.length = 0;
+    this.balls.reset(joints.size);
     for (const [joint, [solverA, solverB]] of joints) {
-      let impulses = this.kept.get(joint);
-      if (!impulses) this.kept.set(joint, (impulses = new Float64Array(SLOT_COUNT)));
+      // each joint's row kept from step to step, its impulses with it: only where it is is new
+      let row = this.kept.get(joint);
+      if (!row) {
+        row = {
+          joint,
+          indexA: -1,
+          indexB: -1,
+          baseFrame: joint.roles.base,
+          movingFrame: joint.roles.moving,
+          startArmA: new Vector3(),
+          startArmB: new Vector3(),
+          impulses: new Float64Array(SLOT_COUNT),
+          masses: new Float64Array(SLOT_COUNT),
+          pointMass: new Float64Array(6),
+          lastLinear: new Vector3(),
+          lastAngular: new Vector3(),
+          orientationImpulse: new Vector3(),
+        };
+        this.kept.set(joint, row);
+      }
       const base = solverB ? solverA : undefined;
       const moving = solverB ?? solverA;
       const roles = joint.roles;
-      this.rows.push({
-        joint,
-        indexA: base ? bodies.indexOf.get(base)! : -1,
-        indexB: bodies.indexOf.get(moving)!,
-        baseFrame: roles.base,
-        movingFrame: roles.moving,
-        startArmA: base ? startArm(base, roles.base) : new Vector3(),
-        startArmB: startArm(moving, roles.moving),
-        impulses,
-        masses: new Float64Array(SLOT_COUNT),
-        pointMass: new Float64Array(6),
-        lastLinear: new Vector3(),
-        lastAngular: new Vector3(),
-        orientationImpulse: new Vector3(),
-      });
+      row.indexA = base ? bodies.indexOf.get(base)! : -1;
+      row.indexB = bodies.indexOf.get(moving)!;
+      row.baseFrame = roles.base;
+      row.movingFrame = roles.moving;
+      if (base) startArm(base, roles.base, row.startArmA);
+      else row.startArmA.set(0, 0, 0);
+      startArm(moving, roles.moving, row.startArmB);
+      row.masses.fill(0);
+      row.lastLinear.set(0, 0, 0);
+      row.lastAngular.set(0, 0, 0);
+      row.orientationImpulse.set(0, 0, 0);
+      // a ball joint and nothing more, as its settings are when the step begins, is solved with the others like it
+      if (isPlainBall(joint)) {
+        this.balls.add(row.indexA, row.indexB, row.startArmA, row.startArmB, row.baseFrame.position, row.impulses);
+        this.ballRows.push(row);
+      } else this.rows.push(row);
     }
   }
 
   /** Works out every row's inverse mass for the substep, and applies the impulses the rows ended the last one with. */
   warmStart(bodies: BodyTable): void {
+    this.balls.warmStart(bodies);
     for (const row of this.rows) {
       this.measure(bodies, row);
       row.masses.fill(0);
@@ -131,10 +157,11 @@ export class SixDofTable {
 
   /** One pass over every joint's rows; with `softness`, the biased pass, which also runs the drives. */
   solve(bodies: BodyTable, substep: number, softness: Softness | undefined): void {
+    this.balls.solve(bodies, softness);
     for (const row of this.rows) {
-      this.measure(bodies, row);
       row.lastLinear.set(0, 0, 0);
       row.lastAngular.set(0, 0, 0);
+      this.measure(bodies, row);
       this.solveConstraints(bodies, row, substep, softness);
       if (softness) this.solveDrives(bodies, row, substep);
       else this.countDriveLoads(row);
@@ -148,6 +175,12 @@ export class SixDofTable {
       row.joint.force.copy(row.lastLinear).divideScalar(substep);
       row.joint.torque.copy(row.lastAngular).divideScalar(substep);
     }
+    // the ball joints' impulses kept for the next step, and their loads: the point's, and no torque
+    this.ballRows.forEach((row, joint) => {
+      this.balls.impulseInto(joint, row.impulses);
+      row.joint.force.set(row.impulses[0]!, row.impulses[1]!, row.impulses[2]!).divideScalar(substep);
+      row.joint.torque.set(0, 0, 0);
+    });
   }
 
   forget(joint: SixDofJoint): void {
@@ -537,8 +570,9 @@ export class SixDofTable {
 }
 
 /** A frame's origin as an offset from the body's centre of mass, in world space, as the body is now. */
-function startArm(body: SolverBody, frame: JointFrame): Vector3 {
-  return body.pointToWorld(frame.position, worldPoint).clone().sub(worldCenter.copy(body.worldCenterOfMass));
+/** Into `target`, the frame's origin as an offset from the body's centre of mass, in world space. */
+function startArm(body: SolverBody, frame: JointFrame, target: Vector3): Vector3 {
+  return target.copy(body.pointToWorld(frame.position, worldPoint)).sub(worldCenter.copy(body.worldCenterOfMass));
 }
 
 function bodyOrientation(bodies: BodyTable, index: number, target: Quaternion): Quaternion {
@@ -564,6 +598,28 @@ function spinAlong(bodies: BodyTable, index: number, direction: Vector3): number
 }
 
 /** Whether a joint holds its frames' origins together, all three linear axes locked. */
+/** Whether a joint only holds its point, every angle free, with nothing driving it or holding it back: a ball joint. */
+function isPlainBall(joint: SixDofJoint): boolean {
+  const { linear, angular, linearDrives, angularDrives } = joint;
+  return (
+    linear[0] === 'locked' &&
+    linear[1] === 'locked' &&
+    linear[2] === 'locked' &&
+    angular[0] === 'free' &&
+    angular[1] === 'free' &&
+    angular[2] === 'free' &&
+    joint.friction <= 0 &&
+    joint.linearFriction <= 0 &&
+    !joint.orientationDrive &&
+    !linearDrives[0] &&
+    !linearDrives[1] &&
+    !linearDrives[2] &&
+    !angularDrives[0] &&
+    !angularDrives[1] &&
+    !angularDrives[2]
+  );
+}
+
 function holdsPoint(row: JointRow): boolean {
   const linear = row.joint.linear;
   return linear[0] === 'locked' && linear[1] === 'locked' && linear[2] === 'locked';

@@ -302,6 +302,7 @@ export class Body extends RigidBodyState {
     this.previousPosition.copy(this.position);
     this.previousQuaternion.copy(this.quaternion);
     this.refreshDerivedState();
+    this.owningWorld?.bodyPosed(this);
   }
 
   addBehavior<SomeBehavior extends Behavior>(behavior: SomeBehavior): SomeBehavior {

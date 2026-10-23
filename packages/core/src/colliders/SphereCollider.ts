@@ -1,7 +1,7 @@
 import type { Box3 } from 'three';
 import { MassProperties } from '../MassProperties.js';
 import type { MassSpecification } from '../MassProperties.js';
-import { Collider } from './Collider.js';
+import { Collider, ROUND_ROLLING_RESISTANCE } from './Collider.js';
 import type { ColliderOptions, ColliderPose } from './Collider.js';
 
 export interface SphereColliderOptions extends ColliderOptions {
@@ -15,7 +15,7 @@ export class SphereCollider extends Collider {
   radius: number;
 
   constructor(options: SphereColliderOptions) {
-    super(options);
+    super(options, ROUND_ROLLING_RESISTANCE);
     if (!(options.radius > 0)) throw new RangeError(`radius must be positive, got ${options.radius}`);
     this.radius = options.radius;
   }

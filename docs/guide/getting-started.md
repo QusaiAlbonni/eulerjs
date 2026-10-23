@@ -165,7 +165,7 @@ eulerjs works in SI units throughout:
 | Velocity, angular velocity | m/s, rad/s |
 
 Make one three.js unit a metre. Gravity (9.81 m/s²), the default densities, the sleep thresholds
-(0.01 m/s) and the contact margins all assume it, so a scene modelled in centimetres behaves like
+(0.05 m/s) and the contact margins all assume it, so a scene modelled in centimetres behaves like
 something a hundred times bigger and slower.
 
 ## Where to go next

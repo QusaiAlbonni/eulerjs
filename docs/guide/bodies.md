@@ -256,7 +256,7 @@ time.
 ## Sleeping
 
 A body that has been still for half a second falls asleep and costs almost nothing until
-something wakes it. Still means slower than the world's `sleepSpeed` (0.01 m/s) and turning
+something wakes it. Still means slower than the world's `sleepSpeed` (0.05 m/s) and turning
 slower than `sleepSpin` (0.035 rad/s, about 2° a second) for `timeToSleep` seconds (0.5); all
 three are `World` options and properties.
 

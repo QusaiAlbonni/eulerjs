@@ -5,7 +5,7 @@ import type { Collider, ColliderPose } from '../../colliders/Collider.js';
 import { ConvexCollider } from '../../colliders/ConvexCollider.js';
 import { SphereCollider } from '../../colliders/SphereCollider.js';
 import { forEachStandInSphere } from './capsule.js';
-import { closestPointOnTriangle, hullOfBox, place } from './convex.js';
+import { closestPointOnTriangle, hullOfBox, place, withEdges } from './convex.js';
 import type { PlacedHull } from './convex.js';
 import { clipPolygon, closestPointsOnSegments } from './narrowphase.js';
 import type { ContactPoint } from './narrowphase.js';
@@ -66,7 +66,7 @@ export function triangleTestFor(collider: Collider, pose: ColliderPose): Triangl
   }
   const hull = shape instanceof BoxCollider ? hullOfBox(shape) : shape instanceof ConvexCollider ? shape : undefined;
   if (!hull) return undefined;
-  const placed = place(hull, pose);
+  const placed = withEdges(place(hull, pose));
   const edgeDirections = hull.edgeDirections.map((direction) => direction.clone().applyMatrix3(pose.rotation));
   return (first, second, third, contacts, margin, oneSided, activeEdges) => hullTriangle(placed, edgeDirections, [first, second, third], contacts, margin, oneSided ?? false, activeEdges ?? ALL_EDGES);
 }
