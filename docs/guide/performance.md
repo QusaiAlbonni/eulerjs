@@ -75,10 +75,9 @@ devices if you would rather see slow motion than dropped frames.
 
 ### Queries
 
-Scene queries search a bounding volume tree, so they stay cheap in large worlds. Each one also
-looks at every body to notice any you moved by hand since the last step, at about 10 ns a body:
-negligible for a few queries a frame, worth knowing for thousands of queries over thousands of
-bodies.
+Scene queries search a bounding volume tree, so they stay cheap in large worlds. The first query
+after a step also looks at every body, to notice any you moved by hand, at about 10 ns a body;
+the queries after it don't, so thousands of them a frame cost what their searches do.
 
 ### Events
 
@@ -87,21 +86,35 @@ listeners you no longer need.
 
 ## Measured
 
-The repository's benchmarks put eulerjs and cannon-es through the same scenes at 60 steps a
-second, with the same friction, pair finding and sleep thresholds (0.01 m/s for 0.5 s); each
-engine keeps its own solver defaults (eulerjs soft step with 4 substeps, cannon-es 10
-Gauss-Seidel iterations). Milliseconds of computing per simulated second, on a Ryzen 5 4600H in
-Node 24, lower is better:
+The repository's benchmarks put eulerjs, cannon-es and Rapier (its plain WebAssembly build)
+through the same scenes at 60 steps a second, with the same masses, friction 0.5, no restitution,
+no damping and no rolling resistance (which only eulerjs has); each engine keeps its own solver
+defaults (eulerjs soft step with 4 substeps, cannon-es 10 Gauss-Seidel iterations, Rapier 4
+solver iterations). The first five are the scenes engines are commonly measured by, after Box2D's
+and Jolt's benchmarks, with sleeping off; each engine is timed over every step of the scene, the
+mean of them, since a scene such as the smash costs more at some moments than others. The last
+seven are timed once settled, the median of seven runs of 60 steps, and the table gives the
+median of three runs of the benchmark. Milliseconds of computing per simulated second, on a
+Ryzen 5 4600H in Node 24, idle and on mains power, lower is better:
 
-| Scene | eulerjs | cannon-es | |
-| --- | ---: | ---: | --- |
-| 125 boxes falling into a pile | 235 ms | 259 ms | eulerjs 1.1× faster |
-| 125 boxes in a pile, never sleeping | 233 ms | 255 ms | eulerjs 1.1× faster |
-| 125 boxes settled, same sleep thresholds | 4 ms | 246 ms | **eulerjs 59× faster** |
-| 125 boxes settled, cannon-es's looser sleep | 4 ms | 152 ms | eulerjs 38× faster |
-| 400 spheres spread out, never sleeping | 127 ms | 130 ms | about even |
-| 400 spheres, same sleep thresholds | 15 ms | 66 ms | eulerjs 4.3× faster |
-| 64 rocks (42-corner hulls), never sleeping | 752 ms | 6168 ms | **eulerjs 8× faster** |
+| Scene | eulerjs | cannon-es | Rapier | eulerjs against cannon-es | eulerjs against Rapier | cannon-es against Rapier |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| Pyramid of 1,015 boxes, standing | 3979 ms | 12594 ms | 1554 ms | 3.2× faster | 2.6× slower | 8.1× slower |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | 647 ms | 8269 ms | 145 ms | **12.8× faster** | 4.5× slower | 57× slower |
+| Smash: a 4 m box through 5,000 floating boxes | 8447 ms | 16375 ms | 2318 ms | 1.9× faster | 3.6× slower | 7.1× slower |
+| Query storm: 5,000 rays a step through 2,000 still shapes | 1862 ms | 29285 ms | 770 ms | **15.7× faster** | 2.4× slower | 38× slower |
+| Joint grid: 1,600 balls on 3,120 ball joints, hanging | 850 ms | 1927 ms | 455 ms | 2.3× faster | 1.9× slower | 4.2× slower |
+| 125 boxes falling into a pile | 107 ms | 234 ms | 63 ms | 2.2× faster | 1.7× slower | 3.7× slower |
+| 125 boxes in a pile, never sleeping | 105 ms | 220 ms | 50 ms | 2.1× faster | 2.1× slower | 4.4× slower |
+| 125 boxes settled | 5 ms | 206 ms | 4 ms | **41× faster** | 1.3× slower | 52× slower |
+| 400 spheres spread out, never sleeping | 75 ms | 101 ms | 43 ms | 1.3× faster | 1.7× slower | 2.3× slower |
+| 400 spheres, sleeping | 13 ms | 58 ms | 8 ms | 4.5× faster | 1.6× slower | 7.3× slower |
+| 64 rocks (42-corner hulls), never sleeping | 69 ms | 6079 ms | 26 ms | **88× faster** | 2.7× slower | 234× slower |
+| 1,860 static walls, 8 boxes sliding round them | 50 ms | 657 ms | 18 ms | **13× faster** | 2.8× slower | 37× slower |
+
+In the sleeping scenes cannon-es is given eulerjs's sleep thresholds (0.05 m/s for 0.5 s); Rapier
+doesn't let JavaScript set its own (measured: about 0.1 m/s and 0.2 rad/s for 0.5 s), so it keeps
+them. Rapier stands on a 10 km box, as its JavaScript API has no infinite plane; the others on one.
 
 The city example (towers, lamp posts, trees, crates, cones and barrels, mostly asleep) with a
 crowd of ragdoll pedestrians, every one awake, against the same city rebuilt in cannon-es with
@@ -123,7 +136,7 @@ difference to a crowd this awake.
 Static scenery costs next to nothing until something reaches it: static bodies are kept in a
 tree of their bounds, so finding what touches them costs only for the bodies that move, and the
 step leaves them out unless they are moved or something rests on them. A race track walled by
-1,860 static boxes takes 0.7 ms a step with nothing moving, and 0.9 ms with 8 boxes sliding
+1,860 static boxes takes 0.7 ms a step with nothing moving, and about 1 ms with 8 boxes sliding
 among them.
 
 And for accuracy (0, or the stated value, is perfect):

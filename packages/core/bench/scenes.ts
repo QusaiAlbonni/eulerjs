@@ -75,7 +75,7 @@ export function boxPile(countPerSide: number, canSleep = true): World {
 export function sphereField(countPerSide: number, canSleep = true): World {
   const world = groundedWorld();
   for (const position of sphereFieldPositions(countPerSide)) {
-    world.addBody(new Body({ massProperties: MassProperties.sphere(0.5, 1), position, colliders: [new SphereCollider({ radius: 0.5 })], canSleep }));
+    world.addBody(new Body({ massProperties: MassProperties.sphere(0.5, 1), position, colliders: [new SphereCollider({ radius: 0.5, rollingResistance: 0 })], canSleep }));
   }
   return world;
 }

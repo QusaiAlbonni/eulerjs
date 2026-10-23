@@ -4,83 +4,24 @@ import { it } from 'vitest';
 import { Body, BoxCollider, MassProperties, PlaneCollider, SphereCollider, World } from '@eulerjs/core';
 import {
   boxPile,
-  boxPilePositions,
   boxStack,
   rockHull,
   rockPile,
-  rockPilePositions,
   runSeconds,
   sphereField,
-  sphereFieldPositions,
   stackPositions,
   timeStep,
 } from './scenes.js';
+import { cannonBody, cannonBoxPile, cannonRockPile, cannonSphereField, cannonWorld, runCannon } from './cannonScenes.js';
 
 // Both engines get the same scenes at 60 steps per second, friction 0.5 unless a test says
-// otherwise, sweep-and-prune pair finding and the same sleep thresholds (0.01 m/s for 0.5 s).
+// otherwise, no damping, sweep-and-prune pair finding and the same sleep thresholds (0.05 m/s
+// for 0.5 s).
 // Each keeps its own solver defaults: cannon-es 10 Gauss-Seidel iterations per step, eulerjs 4
 // substeps per step of its default solver, soft step (EULER_SOLVER=xpbd for XPBD's).
 
 const TIMESTEP = 1 / 60;
 const report = (line: string) => process.stdout.write(`${line}\n`);
-
-function cannonWorld(options: { friction?: number; sleep?: boolean; tilt?: number; frictionReduction?: boolean } = {}): CANNON.World {
-  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0), allowSleep: options.sleep ?? false });
-  world.broadphase = new CANNON.SAPBroadphase(world);
-  // Off by default: every contact point then gets its own friction limit of mu |g| m.
-  world.narrowphase.enableFrictionReduction = options.frictionReduction ?? false;
-  world.defaultContactMaterial.friction = options.friction ?? 0.5;
-  world.defaultContactMaterial.restitution = 0;
-  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
-  // cannon's plane faces +z; turn it to face +y, then tilt it about z like the eulerjs slope
-  const facingUp = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
-  const tilted = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), options.tilt ?? 0).multiply(facingUp);
-  ground.quaternion.set(tilted.x, tilted.y, tilted.z, tilted.w);
-  world.addBody(ground);
-  return world;
-}
-
-/** `sleep: 'matched'` uses eulerjs's thresholds (0.01 m/s for 0.5 s), `'default'` cannon's own (0.1 m/s for 1 s). */
-type CannonSleep = false | 'matched' | 'default';
-
-function cannonBody(world: CANNON.World, mass: number, shape: CANNON.Shape, position: Vector3, sleep: CannonSleep): CANNON.Body {
-  const body = new CANNON.Body({ mass, shape, position: new CANNON.Vec3(position.x, position.y, position.z) });
-  body.allowSleep = sleep !== false;
-  if (sleep === 'matched') {
-    body.sleepSpeedLimit = 0.01;
-    body.sleepTimeLimit = 0.5;
-  }
-  world.addBody(body);
-  return body;
-}
-
-function cannonBoxPile(sleep: CannonSleep): CANNON.World {
-  const world = cannonWorld({ sleep: sleep !== false });
-  for (const position of boxPilePositions(5)) cannonBody(world, 10, new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), position, sleep);
-  return world;
-}
-
-function cannonSphereField(sleep: CannonSleep): CANNON.World {
-  const world = cannonWorld({ sleep: sleep !== false });
-  for (const position of sphereFieldPositions(20)) cannonBody(world, 1, new CANNON.Sphere(0.5), position, sleep);
-  return world;
-}
-
-function cannonRockPile(): CANNON.World {
-  const world = cannonWorld();
-  const hull = rockHull();
-  const shape = new CANNON.ConvexPolyhedron({
-    vertices: hull.vertices.map((vertex) => new CANNON.Vec3(vertex.x, vertex.y, vertex.z)),
-    faces: hull.faces.map((face) => [...face.vertexIndices]),
-  });
-  const mass = hull.massProperties({ density: 2500 }).mass;
-  for (const position of rockPilePositions(4)) cannonBody(world, mass, shape, position, false);
-  return world;
-}
-
-function runCannon(world: CANNON.World, seconds: number): void {
-  for (let step = 0; step < Math.round(seconds / TIMESTEP); step++) world.step(TIMESTEP);
-}
 
 function compareSpeed(label: string, euler: World, cannon: CANNON.World, settleSeconds: number): void {
   runSeconds(euler, settleSeconds);
