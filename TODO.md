@@ -56,13 +56,53 @@ and bounding boxes. Cheap to add and it fits the three.js focus.
 
 ## Solver and scale
 
-- Islands for contacts as well as joints, so separate piles sleep and wake on their own. Today a
-  body only stays awake through contacts with one that won't sleep; a pile otherwise sleeps body
-  by body, which XPBD needs, since a tall stack creeps too much to be still all at once.
+- XPBD is behind soft step and gets none of its work: its contacts are an object a point, made
+  afresh every step, rather than the flat arrays soft step solves (slower than cannon-es on an
+  awake pile of boxes); bodies that only touch sleep one by one, since a tall XPBD stack creeps too
+  much to be still all at once, where soft step's piles sleep and wake as islands.
 - Multithreading or WebAssembly, which the backend split makes possible.
-- A BVH broad phase for each step's pair search in big static scenes, as the scene queries
-  already have; today's sweep and prune sorts every body's bounds.
-- The structure-of-arrays layout the soft-step solver uses, for XPBD too.
+- Where a step's time goes, measured (soft step, sleeping off, the benchmarks' scenes): the solver
+  51 to 71% (pile 37%); finding contacts 21 to 56%, most in the pile of hulls; the pair search 4
+  to 11%, of which the sweep itself 2 to 6%. So:
+  - The narrowphase allocates almost nothing a step now (contact points, manifolds and pairs are
+    reused), which halved the smash's garbage but saved only about 2% of its time: V8 collects
+    short-lived objects cheaply.
+  - Contact caching (reusing a pair's contacts while it barely moves) was tried and dropped: 8%
+    off a standing pyramid kept awake, 3 to 8% on everything else, and a still pair's points kept
+    in one order were enough to change how a pile takes a hard hit, the solver going over a
+    patch's points in order. Resting bodies sleep, which is the better saving.
+  - An incremental broad phase (fat bounds kept from step to step) could save at most the sweep,
+    2 to 6%, less the cost of keeping its pairs in a fixed order for the solver.
+  - In the contact solver's loops, what costs is the number of typed-array reads and writes, each
+    of which V8 bounds-checks and works the address of (about 1 ns each): of a normal row's
+    1,185 instructions, 200 are arithmetic. Reading a manifold's two bodies into locals once and
+    solving its rows against them (normals, friction, setting up its rows) cut the pyramid by
+    about 13%, the simulation the same bit for bit; the warm start, done four times a step,
+    gained nothing. Measured and no better: `| 0` on every index (no overflow checks), each
+    row's and body's numbers in one array apiece (fewer array bases to keep in registers, 2%),
+    each body's turn as a matrix (fewer multiplications, more reads), rows reordered so
+    neighbours share no body (no dependency chain to break), and each row's jacobian stored
+    rather than worked out (more to read: slower). The same in the ball joints' table cut a grid
+    of them by 22%. The six-degree-of-freedom joints' table, rewritten over flat arrays (each
+    joint's settings read into numbers once a step, its frames measured into numbers rather than
+    three.js quaternions), cut a scene of every kind of joint by 38% and one of hinges, sliders,
+    cones and drives by 27%, for 11% fewer instructions: most of the time saved was the objects'
+    calls, not their arithmetic. Then `Math.hypot`, the most it spent on, replaced by `Math.sqrt`
+    (nothing it measures comes near overflowing): 5 to 7% more, the joints holding their locked
+    axes and limits as closely, to a millionth of a millimetre, though no longer to the last bit.
+    What it spends most on now is measuring each joint's frames on every pass.
+  - In the hull test, a face whose bound from the vertex the walk stands on (any vertex's depth
+    bounds the deepest's) is no better than the best so far is passed over unwalked: the pile of
+    hulls 5% fewer instructions, the same bit for bit. Rewriting the clipping, the incident
+    face's search and the support function over numbers gained nothing: V8 does as well.
+  - Hash lookups were 2.4% of the smash: each body's row now kept on it rather than in a Map,
+    the last pair of shapes' collision test kept, an empty ignore list not looked in, and the
+    round shapes told apart once a manifold rather than twice a point, 2% in all. What is left
+    is the Map from body to its contacts of the step before, which would need the contact table's
+    state kept on each body. Passing the warm start its manifold's start turn rather than having
+    it read for each point measured 5% worse on the pyramid, within the noise between builds.
+  - A BVH broad phase for each step's pair search in big static scenes, as the scene queries
+    already have; today's sweep and prune sorts every body's bounds.
 
 ## Determinism and state
 
@@ -92,27 +132,29 @@ needs.
 
 ## Physics from a scene
 
-A plugin, `world.use(new ScenePhysics(scene))`, that is handed a three.js scene (a loaded glTF,
-say) and makes and keeps its bodies itself:
+`@eulerjs/scene` has the first of it: `ScenePhysics` reads `userData.physics` (three.js's own
+convention, plus `friction`, `type` and `collider`) on meshes and groups, fits three.js's
+primitive geometries as their shapes and the rest as hulls or triangles, starts nested objects
+where they are drawn, and makes a body for each instance of an InstancedMesh; `EulerPhysics()` is
+the drop-in for three.js's addons. Still to do:
 
-- What each object is, read from the scene first: glTF's `KHR_physics_rigid_bodies` and
+- Read more of what an object says about itself: glTF's `KHR_physics_rigid_bodies` and
   `KHR_implicit_shapes` (three.js's GLTFLoader keeps unknown extensions in
-  `userData.gltfExtensions`), `userData` (Blender custom properties arrive as glTF extras), and
-  naming conventions (`UCX_` collision proxies, `_static`). Where nothing says, cautious guesses:
-  meshes take part, lights, cameras, lines and helpers don't; parts of an animation are
-  kinematic; large, open or ground-like meshes are static; small closed ones move; when unsure,
-  static. Every decision reported with its reason, and any of them overridable per object.
-- Shapes: static scenery as its triangles (`MeshCollider`) or a heightfield for a grid; a moving
-  object as the primitive that best fits its volume, else its hull; a concave one that moves
-  (a mug, a chair) needs convex decomposition, which eulerjs doesn't have yet. Hulls of heavy
-  meshes simplified first. A scene modelled in centimetres warned about.
+  `userData.gltfExtensions`), and naming conventions (`UCX_` collision proxies, `_static`).
+- Where nothing says, cautious guesses, so a whole loaded glTF can be handed over: meshes take
+  part, lights, cameras, lines and helpers don't; parts of an animation are kinematic; large, open
+  or ground-like meshes are static; small closed ones move; when unsure, static. Every decision
+  reported with its reason, and any of them overridable per object.
+- Shapes: a heightfield for still terrain that is a grid; a concave object that moves (a mug, a
+  chair) needs convex decomposition, which eulerjs doesn't have yet, so it is filled in as its
+  hull. Hulls of heavy meshes simplified first. A scene modelled in centimetres warned about.
 - At runtime: listening for `childadded` and `childremoved` on every node of the scene (they
   don't bubble), noting what changed and catching up once at the start of the next step, so that
   an object removed and added back in between (as `attach` does to reparent it) keeps its body
   and velocity, a group added at once is one pass, and the order is the tree's, for determinism.
   Changes no event tells of (a mesh's geometry or scale, an InstancedMesh's `count`) through
-  `world.refresh(object)`. A hidden object keeps its body; one with a body made by hand is left
-  alone; a body set under another moving body stays its own unless asked to join it.
+  `world.refresh(object)`. A hidden object keeps its body; a body set under another moving body
+  stays its own unless asked to join it.
 
 ## Beyond rigid bodies
 

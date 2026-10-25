@@ -34,8 +34,9 @@ all awake. So:
   kinematic bodies away from large piles where you can.
 - A behaviour that applies a force every step keeps its body awake. Let it skip steps where it has
   nothing to do.
-- Bodies joined by joints sleep only all together, so one restless part keeps a whole ragdoll
-  awake.
+- Bodies that touch or are joined sleep only all together, so one restless part keeps a whole
+  ragdoll, or one box still sliding keeps the whole pile under it, awake; and waking any of them
+  wakes all. Piles kept apart, on a static floor, sleep and wake on their own.
 
 ### Instance what looks alike
 
@@ -93,24 +94,24 @@ defaults (eulerjs soft step with 4 substeps, cannon-es 10 Gauss-Seidel iteration
 solver iterations). The first five are the scenes engines are commonly measured by, after Box2D's
 and Jolt's benchmarks, with sleeping off; each engine is timed over every step of the scene, the
 mean of them, since a scene such as the smash costs more at some moments than others. The last
-seven are timed once settled, the median of seven runs of 60 steps, and the table gives the
-median of three runs of the benchmark. Milliseconds of computing per simulated second, on a
+seven are timed once settled, the median of seven runs of 60 steps, and the table gives one run
+of the benchmark. Milliseconds of computing per simulated second, on a
 Ryzen 5 4600H in Node 24, idle and on mains power, lower is better:
 
 | Scene | eulerjs | cannon-es | Rapier | eulerjs against cannon-es | eulerjs against Rapier | cannon-es against Rapier |
 | --- | ---: | ---: | ---: | --- | --- | --- |
-| Pyramid of 1,015 boxes, standing | 3979 ms | 12594 ms | 1554 ms | 3.2× faster | 2.6× slower | 8.1× slower |
-| Mixed pile: 400 boxes, balls, cylinders and rocks | 647 ms | 8269 ms | 145 ms | **12.8× faster** | 4.5× slower | 57× slower |
-| Smash: a 4 m box through 5,000 floating boxes | 8447 ms | 16375 ms | 2318 ms | 1.9× faster | 3.6× slower | 7.1× slower |
-| Query storm: 5,000 rays a step through 2,000 still shapes | 1862 ms | 29285 ms | 770 ms | **15.7× faster** | 2.4× slower | 38× slower |
-| Joint grid: 1,600 balls on 3,120 ball joints, hanging | 850 ms | 1927 ms | 455 ms | 2.3× faster | 1.9× slower | 4.2× slower |
-| 125 boxes falling into a pile | 107 ms | 234 ms | 63 ms | 2.2× faster | 1.7× slower | 3.7× slower |
-| 125 boxes in a pile, never sleeping | 105 ms | 220 ms | 50 ms | 2.1× faster | 2.1× slower | 4.4× slower |
-| 125 boxes settled | 5 ms | 206 ms | 4 ms | **41× faster** | 1.3× slower | 52× slower |
-| 400 spheres spread out, never sleeping | 75 ms | 101 ms | 43 ms | 1.3× faster | 1.7× slower | 2.3× slower |
-| 400 spheres, sleeping | 13 ms | 58 ms | 8 ms | 4.5× faster | 1.6× slower | 7.3× slower |
-| 64 rocks (42-corner hulls), never sleeping | 69 ms | 6079 ms | 26 ms | **88× faster** | 2.7× slower | 234× slower |
-| 1,860 static walls, 8 boxes sliding round them | 50 ms | 657 ms | 18 ms | **13× faster** | 2.8× slower | 37× slower |
+| Pyramid of 1,015 boxes, standing | 3156 ms | 10864 ms | 1527 ms | 3.4× faster | 2.1× slower | 7.1× slower |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | 447 ms | 8125 ms | 138 ms | **18.2× faster** | 3.2× slower | 59× slower |
+| Smash: a 4 m box through 5,000 floating boxes | 7655 ms | 15746 ms | 2286 ms | 2.1× faster | 3.3× slower | 6.9× slower |
+| Query storm: 5,000 rays a step through 2,000 still shapes | 1481 ms | 21002 ms | 760 ms | **14.2× faster** | 1.9× slower | 28× slower |
+| Joint grid: 1,600 balls on 3,120 ball joints, hanging | 555 ms | 1479 ms | 448 ms | 2.7× faster | 1.2× slower | 3.3× slower |
+| 125 boxes falling into a pile | 94 ms | 216 ms | 58 ms | 2.3× faster | 1.6× slower | 3.7× slower |
+| 125 boxes in a pile, never sleeping | 94 ms | 220 ms | 50 ms | 2.3× faster | 1.9× slower | 4.4× slower |
+| 125 boxes settled | 5 ms | 204 ms | 4 ms | **41× faster** | 1.3× slower | 51× slower |
+| 400 spheres spread out, never sleeping | 76 ms | 101 ms | 43 ms | 1.3× faster | 1.8× slower | 2.3× slower |
+| 400 spheres, sleeping | 13 ms | 59 ms | 9 ms | 4.5× faster | 1.4× slower | 6.6× slower |
+| 64 rocks (42-corner hulls), never sleeping | 59 ms | 6093 ms | 26 ms | **103× faster** | 2.3× slower | 234× slower |
+| 1,860 static walls, 8 boxes sliding round them | 47 ms | 776 ms | 18 ms | **17× faster** | 2.6× slower | 43× slower |
 
 In the sleeping scenes cannon-es is given eulerjs's sleep thresholds (0.05 m/s for 0.5 s); Rapier
 doesn't let JavaScript set its own (measured: about 0.1 m/s and 0.2 rad/s for 0.5 s), so it keeps
@@ -122,10 +123,10 @@ the ragdolls' joints and limits matched by its cone-twist and hinge constraints:
 
 | Crowd | eulerjs soft step | eulerjs XPBD | cannon-es |
 | --- | ---: | ---: | ---: |
-| none (52 props) | 4 ms | 6 ms | 118 ms |
-| 25 people (327 bodies) | 352 ms | 403 ms | 652 ms |
-| 50 people (602 bodies) | 810 ms | 1178 ms | 1333 ms |
-| 100 people (1152 bodies) | 1996 ms | 2327 ms | 2800 ms |
+| none (52 props) | 4 ms | 6 ms | 120 ms |
+| 25 people (327 bodies) | 282 ms | 340 ms | 629 ms |
+| 50 people (602 bodies) | 601 ms | 860 ms | 1312 ms |
+| 100 people (1152 bodies) | 1261 ms | 2017 ms | 2670 ms |
 
 The eulerjs walkers are driven by their joints' drives, which cost more than the forces that
 pull the cannon-es ones along (cannon-es has no joint drives); their joints open up by 15 mm at

@@ -57,6 +57,8 @@ export class AabbTree<Item> {
   private root: TreeNode<Item> | undefined;
   /** Reused by every traversal; queries don't run inside one another's visits. */
   private readonly stack: TreeNode<Item>[] = [];
+  /** The nodes `query` has yet to look in. */
+  private readonly queryStack: TreeNode<Item>[] = [];
   /** Where the ray enters each node on the stack, for the sweeps. */
   private readonly entries: number[] = [];
   /** How many leaves there are, and how many have gone in (or moved) since the tree was last built afresh. */
@@ -127,8 +129,11 @@ export class AabbTree<Item> {
   /** Calls `visit` for every item whose box overlaps `box`. */
   query(box: Box3, visit: (item: Item) => void): void {
     if (!this.root) return;
-    const stack: TreeNode<Item>[] = [this.root];
-    while (stack.length > 0) {
+    // one stack for every query, each working above where it found it, in case `visit` queries too
+    const stack = this.queryStack;
+    const base = stack.length;
+    stack.push(this.root);
+    while (stack.length > base) {
       const node = stack.pop()!;
       if (!node.box.intersectsBox(box)) continue;
       if (node.height === 0) visit(node.item!);

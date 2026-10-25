@@ -1,5 +1,4 @@
-import { Quaternion } from 'three';
-import type { Vector3 } from 'three';
+import type { Quaternion, Vector3 } from 'three';
 import type { AxisMotion, JointDrive } from './SixDofJoint.js';
 
 /**
@@ -21,30 +20,54 @@ export interface FrameTurn {
 
 /** Splits the turn `relative` (frame B in frame A) into twist and swing, writing the swing into `target`. */
 export function swingAndTwist(relative: Quaternion, target: FrameTurn): FrameTurn {
+  splitTurn(relative.x, relative.y, relative.z, relative.w, splitScratch);
+  target.twist = splitScratch[0]!;
+  target.swing.set(0, splitScratch[1]!, splitScratch[2]!);
+  return target;
+}
+
+const splitScratch = new Float64Array(3);
+
+/**
+ * `swingAndTwist` over numbers, for the turn (x, y, z, w): the twist, then the swing's y and z,
+ * into `target`. The products are three.js's, so that it agrees with it to the last bit.
+ */
+export function splitTurn(relativeX: number, relativeY: number, relativeZ: number, relativeW: number, target: Float64Array): void {
   // the twist is the part of the rotation about x; the swing is what is left
-  const twistLength = Math.hypot(relative.x, relative.w);
+  const twistLength = Math.sqrt(relativeX * relativeX + relativeW * relativeW);
   let twistX = 0;
   let twistW = 1;
   if (twistLength > 1e-12) {
-    twistX = relative.x / twistLength;
-    twistW = relative.w / twistLength;
+    twistX = relativeX / twistLength;
+    twistW = relativeW / twistLength;
   }
   if (twistW < 0) {
     twistX = -twistX;
     twistW = -twistW;
   }
-  target.twist = 2 * Math.atan2(twistX, twistW);
-  // swing = relative × twist⁻¹
-  swingScratch.set(-twistX, 0, 0, twistW).premultiply(relative);
-  if (swingScratch.w < 0) swingScratch.set(-swingScratch.x, -swingScratch.y, -swingScratch.z, -swingScratch.w);
-  const sine = Math.hypot(swingScratch.y, swingScratch.z);
-  const angle = 2 * Math.atan2(sine, swingScratch.w);
-  if (sine < 1e-12) target.swing.set(0, 0, 0);
-  else target.swing.set(0, (swingScratch.y / sine) * angle, (swingScratch.z / sine) * angle);
-  return target;
+  target[0] = 2 * Math.atan2(twistX, twistW);
+  // swing = relative × twist⁻¹, as `multiplyQuaternions` works it out, zeros and all (its x is not needed)
+  const inverseX = -twistX;
+  const inverseY = 0;
+  const inverseZ = 0;
+  let swingY = relativeY * twistW + relativeW * inverseY + relativeZ * inverseX - relativeX * inverseZ;
+  let swingZ = relativeZ * twistW + relativeW * inverseZ + relativeX * inverseY - relativeY * inverseX;
+  let swingW = relativeW * twistW - relativeX * inverseX - relativeY * inverseY - relativeZ * inverseZ;
+  if (swingW < 0) {
+    swingY = -swingY;
+    swingZ = -swingZ;
+    swingW = -swingW;
+  }
+  const sine = Math.sqrt(swingY * swingY + swingZ * swingZ);
+  const angle = 2 * Math.atan2(sine, swingW);
+  if (sine < 1e-12) {
+    target[1] = 0;
+    target[2] = 0;
+  } else {
+    target[1] = (swingY / sine) * angle;
+    target[2] = (swingZ / sine) * angle;
+  }
 }
-
-const swingScratch = new Quaternion();
 
 /** How far `value` is beyond what `motion` allows: 0 within it, positive above, negative below. */
 export function excess(value: number, motion: AxisMotion): number {
@@ -73,18 +96,24 @@ export function swingCone(motionY: AxisMotion, motionZ: AxisMotion): { aboutY: n
 
 /** The cone's limit in the direction the swing leans: the ellipse's radius that way. */
 export function coneLimit(cone: { aboutY: number; aboutZ: number }, swing: Vector3): number {
-  const length = Math.hypot(swing.y, swing.z);
-  if (length < 1e-12) return Math.min(cone.aboutY, cone.aboutZ);
-  const cosine = swing.y / length;
-  const sine = swing.z / length;
-  return (cone.aboutY * cone.aboutZ) / Math.hypot(cone.aboutZ * cosine, cone.aboutY * sine) || 0;
+  return coneLimitToward(cone.aboutY, cone.aboutZ, swing.y, swing.z);
+}
+
+/** `coneLimit` over numbers: the cone's half widths, the swing's y and z, and its length if it is known already. */
+export function coneLimitToward(aboutY: number, aboutZ: number, swingY: number, swingZ: number, length = Math.sqrt(swingY * swingY + swingZ * swingZ)): number {
+  if (length < 1e-12) return Math.min(aboutY, aboutZ);
+  const cosine = swingY / length;
+  const sine = swingZ / length;
+  const acrossY = aboutZ * cosine;
+  const acrossZ = aboutY * sine;
+  return (aboutY * aboutZ) / Math.sqrt(acrossY * acrossY + acrossZ * acrossZ) || 0;
 }
 
 /** How far the swing is beyond what its two motions allow, as a rotation vector in frame A to take back, written into `target`. */
 export function swingExcess(swing: Vector3, motionY: AxisMotion, motionZ: AxisMotion, target: Vector3): Vector3 {
   const cone = swingCone(motionY, motionZ);
   if (cone) {
-    const length = Math.hypot(swing.y, swing.z);
+    const length = Math.sqrt(swing.y * swing.y + swing.z * swing.z);
     const limit = coneLimit(cone, swing);
     if (length <= limit) return target.set(0, 0, 0);
     return target.copy(swing).multiplyScalar((length - limit) / length);
@@ -136,17 +165,54 @@ export function driveImpulse(drive: JointDrive, position: number, speed: number,
 
 /** The rotation vector, in world space, that turns the moving frame from `orientationB` to `target` relative to `orientationA`, into `rotation`. */
 export function turnToTarget(orientationA: Quaternion, target: Quaternion, orientationB: Quaternion, rotation: Vector3): Vector3 {
-  // wanted: A target; the turn to it from B is (A target) B⁻¹
-  wantedScratch.multiplyQuaternions(orientationA, target).multiply(inverseScratch.copy(orientationB).invert());
-  const sign = wantedScratch.w < 0 ? -1 : 1;
-  const sine = Math.hypot(wantedScratch.x, wantedScratch.y, wantedScratch.z);
-  if (sine < 1e-12) return rotation.set(0, 0, 0);
-  const angle = 2 * Math.atan2(sine, sign * wantedScratch.w);
-  return rotation.set(wantedScratch.x, wantedScratch.y, wantedScratch.z).multiplyScalar((sign * angle) / sine);
+  turnToTargetInto(orientationA.x, orientationA.y, orientationA.z, orientationA.w, target.x, target.y, target.z, target.w, orientationB.x, orientationB.y, orientationB.z, orientationB.w, rotationScratch);
+  return rotation.set(rotationScratch[0]!, rotationScratch[1]!, rotationScratch[2]!);
 }
 
-const wantedScratch = new Quaternion();
-const inverseScratch = new Quaternion();
+const rotationScratch = new Float64Array(3);
+
+/** `turnToTarget` over numbers, for the quaternions A, target and B, into `rotation`; the products are three.js's. */
+export function turnToTargetInto(
+  orientationAX: number,
+  orientationAY: number,
+  orientationAZ: number,
+  orientationAW: number,
+  targetX: number,
+  targetY: number,
+  targetZ: number,
+  targetW: number,
+  orientationBX: number,
+  orientationBY: number,
+  orientationBZ: number,
+  orientationBW: number,
+  rotation: Float64Array,
+): void {
+  // wanted: A target; the turn to it from B is (A target) B⁻¹
+  const wantedX = orientationAX * targetW + orientationAW * targetX + orientationAY * targetZ - orientationAZ * targetY;
+  const wantedY = orientationAY * targetW + orientationAW * targetY + orientationAZ * targetX - orientationAX * targetZ;
+  const wantedZ = orientationAZ * targetW + orientationAW * targetZ + orientationAX * targetY - orientationAY * targetX;
+  const wantedW = orientationAW * targetW - orientationAX * targetX - orientationAY * targetY - orientationAZ * targetZ;
+  const inverseX = -orientationBX;
+  const inverseY = -orientationBY;
+  const inverseZ = -orientationBZ;
+  const turnX = wantedX * orientationBW + wantedW * inverseX + wantedY * inverseZ - wantedZ * inverseY;
+  const turnY = wantedY * orientationBW + wantedW * inverseY + wantedZ * inverseX - wantedX * inverseZ;
+  const turnZ = wantedZ * orientationBW + wantedW * inverseZ + wantedX * inverseY - wantedY * inverseX;
+  const turnW = wantedW * orientationBW - wantedX * inverseX - wantedY * inverseY - wantedZ * inverseZ;
+  const sign = turnW < 0 ? -1 : 1;
+  const sine = Math.sqrt(turnX * turnX + turnY * turnY + turnZ * turnZ);
+  if (sine < 1e-12) {
+    rotation[0] = 0;
+    rotation[1] = 0;
+    rotation[2] = 0;
+    return;
+  }
+  const angle = 2 * Math.atan2(sine, sign * turnW);
+  const scale = (sign * angle) / sine;
+  rotation[0] = turnX * scale;
+  rotation[1] = turnY * scale;
+  rotation[2] = turnZ * scale;
+}
 
 /** The most impulse a drive may give on a substep. */
 export function driveLimit(drive: JointDrive, substep: number): number {
@@ -158,23 +224,29 @@ export function frameAxis(orientation: Quaternion, axis: number, target: Vector3
   return target.set(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0).applyQuaternion(orientation);
 }
 
-/** The inverse of a symmetric 3 × 3 tensor (xx xy xz yy yz zz) into `target`; zero if it has none. */
-export function invertSymmetric(tensor: Float64Array, target: Float64Array): void {
-  const [xx, xy, xz, yy, yz, zz] = tensor as unknown as [number, number, number, number, number, number];
+/** The inverse of a symmetric 3 × 3 tensor (xx xy xz yy yz zz) into `target` from `at`; zero if it has none. */
+export function invertSymmetric(tensor: Float64Array, target: Float64Array, at = 0): void {
+  // read by index: taken apart as an array, a typed array is gone through by its iterator
+  const xx = tensor[0]!;
+  const xy = tensor[1]!;
+  const xz = tensor[2]!;
+  const yy = tensor[3]!;
+  const yz = tensor[4]!;
+  const zz = tensor[5]!;
   const cofactorXX = yy * zz - yz * yz;
   const cofactorXY = xz * yz - xy * zz;
   const cofactorXZ = xy * yz - xz * yy;
   const determinant = xx * cofactorXX + xy * cofactorXY + xz * cofactorXZ;
   if (!(Math.abs(determinant) > 1e-30)) {
-    target.fill(0);
+    target.fill(0, at, at + 6);
     return;
   }
-  target[0] = cofactorXX / determinant;
-  target[1] = cofactorXY / determinant;
-  target[2] = cofactorXZ / determinant;
-  target[3] = (xx * zz - xz * xz) / determinant;
-  target[4] = (xy * xz - xx * yz) / determinant;
-  target[5] = (xx * yy - xy * xy) / determinant;
+  target[at] = cofactorXX / determinant;
+  target[at + 1] = cofactorXY / determinant;
+  target[at + 2] = cofactorXZ / determinant;
+  target[at + 3] = (xx * zz - xz * xz) / determinant;
+  target[at + 4] = (xy * xz - xx * yz) / determinant;
+  target[at + 5] = (xx * yy - xy * xy) / determinant;
 }
 
 const inertiaScratch = new Float64Array(6);
@@ -198,6 +270,11 @@ export function pinnedInverseInertia(inverseInertia: Float64Array, inverseMass: 
   inertiaScratch[4] = inertiaScratch[4]! - mass * armY * armZ;
   inertiaScratch[5] = inertiaScratch[5]! + mass * (reachSquared - armZ * armZ);
   invertSymmetric(inertiaScratch, pinnedScratch);
-  const [xx, xy, xz, yy, yz, zz] = pinnedScratch as unknown as [number, number, number, number, number, number];
+  const xx = pinnedScratch[0]!;
+  const xy = pinnedScratch[1]!;
+  const xz = pinnedScratch[2]!;
+  const yy = pinnedScratch[3]!;
+  const yz = pinnedScratch[4]!;
+  const zz = pinnedScratch[5]!;
   return axisX * (xx * axisX + xy * axisY + xz * axisZ) + axisY * (xy * axisX + yy * axisY + yz * axisZ) + axisZ * (xz * axisX + yz * axisY + zz * axisZ);
 }

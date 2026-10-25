@@ -75,7 +75,8 @@ export class ContactConstraint {
     readonly colliderB: Collider,
     contactPoint: ContactPoint,
   ) {
-    this.normal = contactPoint.normal;
+    // its own: the collision system hands the point's vectors out again next step
+    this.normal = contactPoint.normal.clone();
     this.depth = contactPoint.depth;
     // the normal points from B toward A, so A's side faces against it
     this.anchorA = anchorFor(bodyA, colliderA, contactPoint.pointA, this.normal.clone().negate());

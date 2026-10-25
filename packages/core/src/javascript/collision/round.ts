@@ -1,11 +1,11 @@
-import { Vector3 } from 'three';
+import { Matrix3, Vector3 } from 'three';
 import { CapsuleCollider } from '../../colliders/CapsuleCollider.js';
 import type { Collider, ColliderPose } from '../../colliders/Collider.js';
 import { ConeCollider } from '../../colliders/ConeCollider.js';
 import { axisAt, CylinderCollider } from '../../colliders/CylinderCollider.js';
 import type { PlaneCollider } from '../../colliders/PlaneCollider.js';
 import { SphereCollider } from '../../colliders/SphereCollider.js';
-import { collide, registerCollisionTest } from './narrowphase.js';
+import { collide, contactPoint, registerCollisionTest } from './narrowphase.js';
 import type { ContactPoint } from './narrowphase.js';
 
 /**
@@ -26,6 +26,18 @@ const point = new Vector3();
 const localCenter = new Vector3();
 const nearest = new Vector3();
 const offset = new Vector3();
+const onPlane = new Vector3();
+const onSphere = new Vector3();
+const outwardScratch = new Vector3();
+const inverseRotation = new Matrix3();
+/** Which ways round a ring its points are taken, along `across` and `sideways`; a tip is one point. */
+const RING_DIRECTIONS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+const TIP_DIRECTIONS = [[0, 0]] as const;
 
 /** The rings a round-ended shape is made of, along its y axis: height and radius, a radius of 0 being a tip. */
 function ringsOf(collider: CylinderCollider | ConeCollider): readonly (readonly [number, number])[] {
@@ -57,23 +69,23 @@ function roundOnPlane(collider: CylinderCollider | ConeCollider, pose: ColliderP
   const planeHeight = planeNormal.dot(planePose.position);
   for (const [height, radius] of ringsOf(collider)) {
     ringCenter.copy(pose.position).addScaledVector(axis, height);
-    const directions = radius === 0 ? [[0, 0]] : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const directions = radius === 0 ? TIP_DIRECTIONS : RING_DIRECTIONS;
     for (const [alongAcross, alongSideways] of directions) {
-      point.copy(ringCenter).addScaledVector(across, radius * alongAcross!).addScaledVector(sideways, radius * alongSideways!);
+      point.copy(ringCenter).addScaledVector(across, radius * alongAcross).addScaledVector(sideways, radius * alongSideways);
       const above = planeNormal.dot(point) - planeHeight;
       if (above >= margin) continue;
-      contacts.push({ pointA: point.clone(), pointB: point.clone().addScaledVector(planeNormal, -above), normal: planeNormal.clone(), depth: -above });
+      contacts.push(contactPoint(point, onPlane.copy(point).addScaledVector(planeNormal, -above), planeNormal, -above));
     }
   }
 }
 
 /** A sphere against a solid cylinder, exactly: the nearest point of the cylinder, or the nearest way out of it. */
 function sphereCylinder(sphere: SphereCollider, spherePose: ColliderPose, cylinder: CylinderCollider, cylinderPose: ColliderPose, contacts: ContactPoint[], margin: number): void {
-  const inverse = cylinderPose.rotation.clone().transpose();
+  const inverse = inverseRotation.copy(cylinderPose.rotation).transpose();
   localCenter.subVectors(spherePose.position, cylinderPose.position).applyMatrix3(inverse);
   const half = cylinder.height / 2;
   const radial = Math.hypot(localCenter.x, localCenter.z);
-  const outward = new Vector3();
+  const outward = outwardScratch;
   let depth: number;
   if (radial <= cylinder.radius && Math.abs(localCenter.y) <= half) {
     // centre inside: out through the nearest of the side and the two ends
@@ -98,8 +110,8 @@ function sphereCylinder(sphere: SphereCollider, spherePose: ColliderPose, cylind
     depth = sphere.radius - distance;
   }
   const normal = outward.applyMatrix3(cylinderPose.rotation);
-  const pointB = nearest.applyMatrix3(cylinderPose.rotation).add(cylinderPose.position).clone();
-  contacts.push({ pointA: spherePose.position.clone().addScaledVector(normal, -sphere.radius), pointB, normal: normal.clone(), depth });
+  const pointB = nearest.applyMatrix3(cylinderPose.rotation).add(cylinderPose.position);
+  contacts.push(contactPoint(onSphere.copy(spherePose.position).addScaledVector(normal, -sphere.radius), pointB, normal, depth));
 }
 
 /** The collider a shape collides as when there is no exact test for the pair: a round shape's hull, otherwise itself. */

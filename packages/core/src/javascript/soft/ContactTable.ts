@@ -130,14 +130,9 @@ export class ContactTable {
     let row = 0;
     for (const manifold of manifolds) {
       this.patchStarts.push(row);
-      const indexA = bodies.indexOf.get(manifold.bodyA)!;
-      const indexB = bodies.indexOf.get(manifold.bodyB)!;
-      const run = this.keptRunOf(manifold);
-      for (const point of manifold.points) {
-        this.prepareRow(row, manifold, point, indexA, indexB, bodies, run);
-        if (this.rimRadiusA[row]! > 0 || this.rimRadiusB[row]! > 0) this.rimRows.push(row);
-        row++;
-      }
+      const indexA = manifold.bodyA.tableRow;
+      const indexB = manifold.bodyB.tableRow;
+      row = this.prepareManifold(row, manifold, indexA, indexB, bodies, this.keptRunOf(manifold));
     }
     this.patchStarts.push(row);
     this.hasRims = this.rimRows.length > 0;
@@ -248,13 +243,17 @@ export class ContactTable {
     // would be rolled over by it. (Going over a bigger patch's points more than once a pass
     // would apply their soft springs more than once, which lets stacks drift.)
     if (this.hasRims) this.followRims(bodies);
-    for (let patch = 0; patch + 1 < this.patchStarts.length; patch++) {
+    // the patches in order, those between two-point patches in one go each
+    const patchCount = this.patchStarts.length - 1;
+    let runStart = 0;
+    for (let patch = 0; patch < patchCount; patch++) {
       const start = this.patchStarts[patch]!;
-      const end = this.patchStarts[patch + 1]!;
-      const patchSoftness = bodies.moving[this.bodyB[start]!] ? softness : fixedSoftness;
-      if (end - start === 2) this.solveNormalPair(bodies, start, start + 1, substep, patchSoftness);
-      else for (let row = start; row < end; row++) this.solveNormal(bodies, row, substep, patchSoftness);
+      if (this.patchStarts[patch + 1]! - start !== 2) continue;
+      this.solveNormalPatches(bodies, runStart, patch, substep, softness, fixedSoftness);
+      this.solveNormalPair(bodies, start, start + 1, substep, bodies.moving[this.bodyB[start]!] ? softness : fixedSoftness);
+      runStart = patch + 1;
     }
+    this.solveNormalPatches(bodies, runStart, patchCount, substep, softness, fixedSoftness);
     this.solveFriction(bodies);
     for (let row = 0; row < this.count; row++) if (this.rollingArm[row]! > 0) this.solveRolling(bodies, row);
   }
@@ -383,66 +382,122 @@ export class ContactTable {
     return contacts;
   }
 
-  private prepareRow(row: number, manifold: Manifold, point: Manifold['points'][number], indexA: number, indexB: number, bodies: BodyTable, run: number): void {
-    const vector = 3 * row;
-    this.bodyA[row] = indexA;
-    this.bodyB[row] = indexB;
-    this.colliderA[row] = manifold.colliderA;
-    this.colliderB[row] = manifold.colliderB;
-    const anchorAX = point.pointA.x - bodies.centers[3 * indexA]!;
-    const anchorAY = point.pointA.y - bodies.centers[3 * indexA + 1]!;
-    const anchorAZ = point.pointA.z - bodies.centers[3 * indexA + 2]!;
-    const anchorBX = point.pointB.x - bodies.centers[3 * indexB]!;
-    const anchorBY = point.pointB.y - bodies.centers[3 * indexB + 1]!;
-    const anchorBZ = point.pointB.z - bodies.centers[3 * indexB + 2]!;
-    setVector(this.anchorA, vector, anchorAX, anchorAY, anchorAZ);
-    setVector(this.anchorB, vector, anchorBX, anchorBY, anchorBZ);
-    const normalX = point.normal.x;
-    const normalY = point.normal.y;
-    const normalZ = point.normal.z;
-    setVector(this.normal, vector, normalX, normalY, normalZ);
-    // the normal points from B toward A, so A's surface faces along -n and B's along +n
-    this.rimRadiusA[row] = this.writeTurningPart(this.turningA, this.rimAxisA, this.rimSineA, row, manifold.bodyA, manifold.colliderA, point.pointA, outwardA.set(-normalX, -normalY, -normalZ), anchorAX, anchorAY, anchorAZ);
-    this.rimRadiusB[row] = this.writeTurningPart(this.turningB, this.rimAxisB, this.rimSineB, row, manifold.bodyB, manifold.colliderB, point.pointB, outwardB.set(normalX, normalY, normalZ), anchorBX, anchorBY, anchorBZ);
-    // two tangents square to the normal and each other
-    const pickX = Math.abs(normalX) < 0.57735 ? 1 : 0;
-    const pickY = pickX === 1 ? 0 : 1;
-    let tangentX = normalY * 0 - normalZ * pickY;
-    let tangentY = normalZ * pickX - normalX * 0;
-    let tangentZ = normalX * pickY - normalY * pickX;
-    const tangentLength = Math.sqrt(tangentX * tangentX + tangentY * tangentY + tangentZ * tangentZ);
-    tangentX /= tangentLength;
-    tangentY /= tangentLength;
-    tangentZ /= tangentLength;
-    setVector(this.tangentA, vector, tangentX, tangentY, tangentZ);
-    setVector(this.tangentB, vector, normalY * tangentZ - normalZ * tangentY, normalZ * tangentX - normalX * tangentZ, normalX * tangentY - normalY * tangentX);
-    this.separation[row] = -point.depth;
-    this.normalMass[row] = inverse(this.inverseMassAlong(bodies, row, normalX, normalY, normalZ));
-    this.tangentMassA[row] = inverse(this.inverseMassAlong(bodies, row, tangentX, tangentY, tangentZ));
-    this.tangentMassB[row] = inverse(this.inverseMassAlong(bodies, row, this.tangentB[vector]!, this.tangentB[vector + 1]!, this.tangentB[vector + 2]!));
-    this.friction[row] = Math.sqrt(manifold.colliderA.friction * manifold.colliderB.friction);
-    this.restitution[row] = Math.max(manifold.colliderA.restitution, manifold.colliderB.restitution);
-    const rollingResistance = Math.max(manifold.colliderA.rollingResistance, manifold.colliderB.rollingResistance);
-    this.rollingArm[row] = rollingResistance > 0 ? rollingResistance * (rollingRadius(manifold.colliderA) ?? rollingRadius(manifold.colliderB) ?? 0) : 0;
-    this.approachSpeed[row] = 0;
-    this.maxNormalImpulse[row] = 0;
-    this.totalNormalImpulse[row] = 0;
-    this.warmStartFrom(row, bodies, indexA, run);
+  /**
+   * The rows for a manifold's points, from `firstRow`, with the impulses of the points they match
+   * from the last step; returns the row after its last. One loop over them rather than a call
+   * for each, which is too big for the engine to inline into its caller's loop.
+   */
+  private prepareManifold(firstRow: number, manifold: Manifold, indexA: number, indexB: number, bodies: BodyTable, run: number): number {
+    // the two bodies' centres, masses and inertias, read once for all of the manifold's points
+    const { centers, inverseMasses, inverseInertias, moving } = bodies;
+    const centerAX = centers[3 * indexA]!;
+    const centerAY = centers[3 * indexA + 1]!;
+    const centerAZ = centers[3 * indexA + 2]!;
+    const centerBX = centers[3 * indexB]!;
+    const centerBY = centers[3 * indexB + 1]!;
+    const centerBZ = centers[3 * indexB + 2]!;
+    const movingA = moving[indexA] !== 0;
+    const movingB = moving[indexB] !== 0;
+    const massA = inverseMasses[indexA]!;
+    const massB = inverseMasses[indexB]!;
+    const tensorA = 6 * indexA;
+    const tensorB = 6 * indexB;
+    const xxA = inverseInertias[tensorA]!;
+    const xyA = inverseInertias[tensorA + 1]!;
+    const xzA = inverseInertias[tensorA + 2]!;
+    const yyA = inverseInertias[tensorA + 3]!;
+    const yzA = inverseInertias[tensorA + 4]!;
+    const zzA = inverseInertias[tensorA + 5]!;
+    const xxB = inverseInertias[tensorB]!;
+    const xyB = inverseInertias[tensorB + 1]!;
+    const xzB = inverseInertias[tensorB + 2]!;
+    const yyB = inverseInertias[tensorB + 3]!;
+    const yzB = inverseInertias[tensorB + 4]!;
+    const zzB = inverseInertias[tensorB + 5]!;
+    // a shape with corners turns its touching point with it, all of it: nothing to pose to see
+    const roundA = ROUND_SHAPES.has(manifold.colliderA.shape);
+    const roundB = ROUND_SHAPES.has(manifold.colliderB.shape);
+    let row = firstRow;
+    for (const point of manifold.points) {
+      const vector = 3 * row;
+      this.bodyA[row] = indexA;
+      this.bodyB[row] = indexB;
+      this.colliderA[row] = manifold.colliderA;
+      this.colliderB[row] = manifold.colliderB;
+      const anchorAX = point.pointA.x - centerAX;
+      const anchorAY = point.pointA.y - centerAY;
+      const anchorAZ = point.pointA.z - centerAZ;
+      const anchorBX = point.pointB.x - centerBX;
+      const anchorBY = point.pointB.y - centerBY;
+      const anchorBZ = point.pointB.z - centerBZ;
+      setVector(this.anchorA, vector, anchorAX, anchorAY, anchorAZ);
+      setVector(this.anchorB, vector, anchorBX, anchorBY, anchorBZ);
+      const normalX = point.normal.x;
+      const normalY = point.normal.y;
+      const normalZ = point.normal.z;
+      setVector(this.normal, vector, normalX, normalY, normalZ);
+      // the normal points from B toward A, so A's surface faces along -n and B's along +n
+      if (roundA) this.rimRadiusA[row] = this.writeTurningPart(this.turningA, this.rimAxisA, this.rimSineA, row, manifold.bodyA, manifold.colliderA, point.pointA, outwardA.set(-normalX, -normalY, -normalZ), anchorAX, anchorAY, anchorAZ);
+      else {
+        setVector(this.turningA, vector, anchorAX, anchorAY, anchorAZ);
+        this.rimRadiusA[row] = 0;
+      }
+      if (roundB) this.rimRadiusB[row] = this.writeTurningPart(this.turningB, this.rimAxisB, this.rimSineB, row, manifold.bodyB, manifold.colliderB, point.pointB, outwardB.set(normalX, normalY, normalZ), anchorBX, anchorBY, anchorBZ);
+      else {
+        setVector(this.turningB, vector, anchorBX, anchorBY, anchorBZ);
+        this.rimRadiusB[row] = 0;
+      }
+      // two tangents square to the normal and each other
+      const pickX = Math.abs(normalX) < 0.57735 ? 1 : 0;
+      const pickY = pickX === 1 ? 0 : 1;
+      let tangentX = normalY * 0 - normalZ * pickY;
+      let tangentY = normalZ * pickX - normalX * 0;
+      let tangentZ = normalX * pickY - normalY * pickX;
+      const tangentLength = Math.sqrt(tangentX * tangentX + tangentY * tangentY + tangentZ * tangentZ);
+      tangentX /= tangentLength;
+      tangentY /= tangentLength;
+      tangentZ /= tangentLength;
+      setVector(this.tangentA, vector, tangentX, tangentY, tangentZ);
+      setVector(this.tangentB, vector, normalY * tangentZ - normalZ * tangentY, normalZ * tangentX - normalX * tangentZ, normalX * tangentY - normalY * tangentX);
+      this.separation[row] = -point.depth;
+      const otherTangentX = this.tangentB[vector]!;
+      const otherTangentY = this.tangentB[vector + 1]!;
+      const otherTangentZ = this.tangentB[vector + 2]!;
+      // as `inverseMassAlong`, from the masses and inertias read above
+      this.normalMass[row] = inverse(
+        inverseMassOf(movingA, massA, xxA, xyA, xzA, yyA, yzA, zzA, anchorAX, anchorAY, anchorAZ, normalX, normalY, normalZ) +
+          inverseMassOf(movingB, massB, xxB, xyB, xzB, yyB, yzB, zzB, anchorBX, anchorBY, anchorBZ, normalX, normalY, normalZ),
+      );
+      this.tangentMassA[row] = inverse(
+        inverseMassOf(movingA, massA, xxA, xyA, xzA, yyA, yzA, zzA, anchorAX, anchorAY, anchorAZ, tangentX, tangentY, tangentZ) +
+          inverseMassOf(movingB, massB, xxB, xyB, xzB, yyB, yzB, zzB, anchorBX, anchorBY, anchorBZ, tangentX, tangentY, tangentZ),
+      );
+      this.tangentMassB[row] = inverse(
+        inverseMassOf(movingA, massA, xxA, xyA, xzA, yyA, yzA, zzA, anchorAX, anchorAY, anchorAZ, otherTangentX, otherTangentY, otherTangentZ) +
+          inverseMassOf(movingB, massB, xxB, xyB, xzB, yyB, yzB, zzB, anchorBX, anchorBY, anchorBZ, otherTangentX, otherTangentY, otherTangentZ),
+      );
+      this.friction[row] = Math.sqrt(manifold.colliderA.friction * manifold.colliderB.friction);
+      this.restitution[row] = Math.max(manifold.colliderA.restitution, manifold.colliderB.restitution);
+      const rollingResistance = Math.max(manifold.colliderA.rollingResistance, manifold.colliderB.rollingResistance);
+      this.rollingArm[row] = rollingResistance > 0 ? rollingResistance * (rollingRadius(manifold.colliderA) ?? rollingRadius(manifold.colliderB) ?? 0) : 0;
+      this.approachSpeed[row] = 0;
+      this.maxNormalImpulse[row] = 0;
+      this.totalNormalImpulse[row] = 0;
+      this.warmStartFrom(row, bodies, indexA, run);
+      if (this.rimRadiusA[row]! > 0 || this.rimRadiusB[row]! > 0) this.rimRows.push(row);
+      row++;
+    }
+    return row;
   }
 
   /**
-   * Writes the part of an anchor that turns with its body: all of it, or on a round shape only
-   * the offset to the centre it rolls about, the reach from there to the surface staying put; or
+   * Writes the part of an anchor on a round shape that turns with its body: the offset to the
+   * centre it rolls about, the reach from there to the surface staying put; or
    * on the rim of a cylinder's or cone's end, the offset to the end's middle, with the rim's
    * axis and sine, the radius returned (else 0).
    */
   private writeTurningPart(turning: Float64Array, rimAxes: Float64Array, rimSines: Float64Array, row: number, body: SolverBody, collider: Collider, contactPoint: Vector3, outward: Vector3, anchorX: number, anchorY: number, anchorZ: number): number {
     const vector = 3 * row;
-    // a shape with corners turns its touching point with it, all of it: nothing to pose to see
-    if (!ROUND_SHAPES.has(collider.shape)) {
-      setVector(turning, vector, anchorX, anchorY, anchorZ);
-      return 0;
-    }
     collider.poseIn(body, colliderPose);
     const rounding = roundingAt(collider, colliderPose, contactPoint, outward);
     const rim = rounding ? undefined : rimAt(collider, colliderPose, contactPoint, outward);
@@ -531,88 +586,273 @@ export class ContactTable {
    * `setNormalImpulse` work, which the rarer paths still use.
    */
   private solveNormal(bodies: BodyTable, row: number, substep: number, softness: Softness | undefined): void {
+    this.solveNormalRange(bodies, row, row + 1, substep, softness, softness);
+  }
+
+  /**
+   * The normal rows of the patches from `firstPatch` up to `endPatch`, a patch at a time: the
+   * rows of a patch all push the same two bodies, so their velocities are read into locals once,
+   * every row is solved against those, one after the other, and they are written back once. The
+   * same arithmetic in the same order as row by row (`solveNormalRange`), with a fraction of the
+   * array reads and writes, each of which the engine bounds-checks.
+   */
+  private solveNormalPatches(bodies: BodyTable, firstPatch: number, endPatch: number, substep: number, softness: Softness | undefined, fixedSoftness: Softness | undefined): void {
+    const { centers, startCenters, turns, travelling, velocities, spins, inverseMasses, inverseInertias, moving } = bodies;
+    const { anchorA, anchorB, turningA, turningB, normal, normalImpulse, maxNormalImpulse, separation: separations, normalMass, approachSpeed, patchStarts } = this;
+    for (let patch = firstPatch; patch < endPatch; patch++) {
+      const start = patchStarts[patch]!;
+      const end = patchStarts[patch + 1]!;
+      const indexA = this.bodyA[start]!;
+      const indexB = this.bodyB[start]!;
+      const atA = 3 * indexA;
+      const atB = 3 * indexB;
+      const movingA = moving[indexA] !== 0;
+      const movingB = moving[indexB] !== 0;
+      const travellingA = travelling[indexA] !== 0;
+      const travellingB = travelling[indexB] !== 0;
+      const rowSoftness = movingB ? softness : fixedSoftness;
+      // how far the bodies have moved apart since the step began, and how each has turned
+      const shiftX = centers[atA]! - startCenters[atA]! - (centers[atB]! - startCenters[atB]!);
+      const shiftY = centers[atA + 1]! - startCenters[atA + 1]! - (centers[atB + 1]! - startCenters[atB + 1]!);
+      const shiftZ = centers[atA + 2]! - startCenters[atA + 2]! - (centers[atB + 2]! - startCenters[atB + 2]!);
+      const turnA = 4 * indexA;
+      const turnB = 4 * indexB;
+      const turnAX = turns[turnA]!;
+      const turnAY = turns[turnA + 1]!;
+      const turnAZ = turns[turnA + 2]!;
+      const turnAW = turns[turnA + 3]!;
+      const turnBX = turns[turnB]!;
+      const turnBY = turns[turnB + 1]!;
+      const turnBZ = turns[turnB + 2]!;
+      const turnBW = turns[turnB + 3]!;
+      // the velocities the rows change, and what a push does to them
+      let velocityAX = velocities[atA]!;
+      let velocityAY = velocities[atA + 1]!;
+      let velocityAZ = velocities[atA + 2]!;
+      let spinAX = spins[atA]!;
+      let spinAY = spins[atA + 1]!;
+      let spinAZ = spins[atA + 2]!;
+      let velocityBX = velocities[atB]!;
+      let velocityBY = velocities[atB + 1]!;
+      let velocityBZ = velocities[atB + 2]!;
+      let spinBX = spins[atB]!;
+      let spinBY = spins[atB + 1]!;
+      let spinBZ = spins[atB + 2]!;
+      const massA = inverseMasses[indexA]!;
+      const massB = inverseMasses[indexB]!;
+      const tensorA = 6 * indexA;
+      const tensorB = 6 * indexB;
+      const xxA = inverseInertias[tensorA]!;
+      const xyA = inverseInertias[tensorA + 1]!;
+      const xzA = inverseInertias[tensorA + 2]!;
+      const yyA = inverseInertias[tensorA + 3]!;
+      const yzA = inverseInertias[tensorA + 4]!;
+      const zzA = inverseInertias[tensorA + 5]!;
+      const xxB = inverseInertias[tensorB]!;
+      const xyB = inverseInertias[tensorB + 1]!;
+      const xzB = inverseInertias[tensorB + 2]!;
+      const yyB = inverseInertias[tensorB + 3]!;
+      const yzB = inverseInertias[tensorB + 4]!;
+      const zzB = inverseInertias[tensorB + 5]!;
+      for (let row = start; row < end; row++) {
+        const vector = 3 * row;
+        const normalX = normal[vector]!;
+        const normalY = normal[vector + 1]!;
+        const normalZ = normal[vector + 2]!;
+        // how far apart the anchors are now, as `currentSeparation`
+        let movedX = shiftX;
+        let movedY = shiftY;
+        let movedZ = shiftZ;
+        if (travellingA) {
+          const turningX = turningA[vector]!;
+          const turningY = turningA[vector + 1]!;
+          const turningZ = turningA[vector + 2]!;
+          const twiceCrossX = 2 * (turnAY * turningZ - turnAZ * turningY);
+          const twiceCrossY = 2 * (turnAZ * turningX - turnAX * turningZ);
+          const twiceCrossZ = 2 * (turnAX * turningY - turnAY * turningX);
+          movedX += turningX + turnAW * twiceCrossX + turnAY * twiceCrossZ - turnAZ * twiceCrossY - turningX;
+          movedY += turningY + turnAW * twiceCrossY + turnAZ * twiceCrossX - turnAX * twiceCrossZ - turningY;
+          movedZ += turningZ + turnAW * twiceCrossZ + turnAX * twiceCrossY - turnAY * twiceCrossX - turningZ;
+        }
+        if (travellingB) {
+          const turningX = turningB[vector]!;
+          const turningY = turningB[vector + 1]!;
+          const turningZ = turningB[vector + 2]!;
+          const twiceCrossX = 2 * (turnBY * turningZ - turnBZ * turningY);
+          const twiceCrossY = 2 * (turnBZ * turningX - turnBX * turningZ);
+          const twiceCrossZ = 2 * (turnBX * turningY - turnBY * turningX);
+          movedX -= turningX + turnBW * twiceCrossX + turnBY * twiceCrossZ - turnBZ * twiceCrossY - turningX;
+          movedY -= turningY + turnBW * twiceCrossY + turnBZ * twiceCrossX - turnBX * twiceCrossZ - turningY;
+          movedZ -= turningZ + turnBW * twiceCrossZ + turnBX * twiceCrossY - turnBY * twiceCrossX - turningZ;
+        }
+        const separation = separations[row]! + movedX * normalX + movedY * normalY + movedZ * normalZ;
+        // what the row asks for, as `normalTerms`
+        let bias = 0;
+        let massScale = 1;
+        let impulseScale = 0;
+        if (separation > 0) bias = separation / substep;
+        else if (rowSoftness) {
+          bias = Math.max(rowSoftness.biasRate * separation, -MAX_PUSH_OUT_SPEED);
+          massScale = rowSoftness.massScale;
+          impulseScale = rowSoftness.impulseScale;
+        }
+        // how fast the anchors move apart, as `normalSpeed`
+        const armAX = anchorA[vector]!;
+        const armAY = anchorA[vector + 1]!;
+        const armAZ = anchorA[vector + 2]!;
+        const armBX = anchorB[vector]!;
+        const armBY = anchorB[vector + 1]!;
+        const armBZ = anchorB[vector + 2]!;
+        const relativeX = velocityAX + spinAY * armAZ - spinAZ * armAY - (velocityBX + spinBY * armBZ - spinBZ * armBY);
+        const relativeY = velocityAY + spinAZ * armAX - spinAX * armAZ - (velocityBY + spinBZ * armBX - spinBX * armBZ);
+        const relativeZ = velocityAZ + spinAX * armAY - spinAY * armAX - (velocityBZ + spinBX * armBY - spinBY * armBX);
+        const normalSpeed = relativeX * normalX + relativeY * normalY + relativeZ * normalZ;
+        const old = normalImpulse[row]!;
+        const change = -normalMass[row]! * massScale * (normalSpeed + bias) - impulseScale * old;
+        // and the new impulse, as `setNormalImpulse`
+        const impulse = Math.max(old + change, 0);
+        const applied = impulse - old;
+        normalImpulse[row] = impulse;
+        if (maxNormalImpulse[row] === 0 && impulse > 0) approachSpeed[row] = normalSpeed;
+        maxNormalImpulse[row] = Math.max(maxNormalImpulse[row]!, impulse);
+        if (applied === 0) continue;
+        const impulseX = normalX * applied;
+        const impulseY = normalY * applied;
+        const impulseZ = normalZ * applied;
+        // the push, as `pushBody`: A along the impulse, B against it
+        if (movingA) {
+          velocityAX = velocityAX + impulseX * massA;
+          velocityAY = velocityAY + impulseY * massA;
+          velocityAZ = velocityAZ + impulseZ * massA;
+          const angularX = armAY * impulseZ - armAZ * impulseY;
+          const angularY = armAZ * impulseX - armAX * impulseZ;
+          const angularZ = armAX * impulseY - armAY * impulseX;
+          spinAX = spinAX + (xxA * angularX + xyA * angularY + xzA * angularZ);
+          spinAY = spinAY + (xyA * angularX + yyA * angularY + yzA * angularZ);
+          spinAZ = spinAZ + (xzA * angularX + yzA * angularY + zzA * angularZ);
+        }
+        if (movingB) {
+          velocityBX = velocityBX + -impulseX * massB;
+          velocityBY = velocityBY + -impulseY * massB;
+          velocityBZ = velocityBZ + -impulseZ * massB;
+          const angularX = armBY * -impulseZ - armBZ * -impulseY;
+          const angularY = armBZ * -impulseX - armBX * -impulseZ;
+          const angularZ = armBX * -impulseY - armBY * -impulseX;
+          spinBX = spinBX + (xxB * angularX + xyB * angularY + xzB * angularZ);
+          spinBY = spinBY + (xyB * angularX + yyB * angularY + yzB * angularZ);
+          spinBZ = spinBZ + (xzB * angularX + yzB * angularY + zzB * angularZ);
+        }
+      }
+      if (movingA) {
+        velocities[atA] = velocityAX;
+        velocities[atA + 1] = velocityAY;
+        velocities[atA + 2] = velocityAZ;
+        spins[atA] = spinAX;
+        spins[atA + 1] = spinAY;
+        spins[atA + 2] = spinAZ;
+      }
+      if (movingB) {
+        velocities[atB] = velocityBX;
+        velocities[atB + 1] = velocityBY;
+        velocities[atB + 2] = velocityBZ;
+        spins[atB] = spinBX;
+        spins[atB + 1] = spinBY;
+        spins[atB + 2] = spinBZ;
+      }
+    }
+  }
+
+  /**
+   * The normal rows from `start` up to `end`, one after the other: soft as `softness`, or as
+   * `fixedSoftness` against a body that doesn't move. One loop over them all rather than a call
+   * for each, which is too big for the engine to inline into its caller's loop.
+   */
+  private solveNormalRange(bodies: BodyTable, start: number, end: number, substep: number, softness: Softness | undefined, fixedSoftness: Softness | undefined): void {
     const { centers, startCenters, turns, travelling, velocities, spins, inverseMasses, inverseInertias, moving } = bodies;
     const { anchorA, anchorB, turningA, turningB, normal, normalImpulse, maxNormalImpulse } = this;
-    const vector = 3 * row;
-    const indexA = this.bodyA[row]!;
-    const indexB = this.bodyB[row]!;
-    const atA = 3 * indexA;
-    const atB = 3 * indexB;
-    const normalX = normal[vector]!;
-    const normalY = normal[vector + 1]!;
-    const normalZ = normal[vector + 2]!;
-    // how far apart the anchors are now, as `currentSeparation`
-    let movedX = centers[atA]! - startCenters[atA]! - (centers[atB]! - startCenters[atB]!);
-    let movedY = centers[atA + 1]! - startCenters[atA + 1]! - (centers[atB + 1]! - startCenters[atB + 1]!);
-    let movedZ = centers[atA + 2]! - startCenters[atA + 2]! - (centers[atB + 2]! - startCenters[atB + 2]!);
-    if (travelling[indexA]) {
-      const turn = 4 * indexA;
-      const turningX = turningA[vector]!;
-      const turningY = turningA[vector + 1]!;
-      const turningZ = turningA[vector + 2]!;
-      const quaternionX = turns[turn]!;
-      const quaternionY = turns[turn + 1]!;
-      const quaternionZ = turns[turn + 2]!;
-      const quaternionW = turns[turn + 3]!;
-      const twiceCrossX = 2 * (quaternionY * turningZ - quaternionZ * turningY);
-      const twiceCrossY = 2 * (quaternionZ * turningX - quaternionX * turningZ);
-      const twiceCrossZ = 2 * (quaternionX * turningY - quaternionY * turningX);
-      movedX += turningX + quaternionW * twiceCrossX + quaternionY * twiceCrossZ - quaternionZ * twiceCrossY - turningX;
-      movedY += turningY + quaternionW * twiceCrossY + quaternionZ * twiceCrossX - quaternionX * twiceCrossZ - turningY;
-      movedZ += turningZ + quaternionW * twiceCrossZ + quaternionX * twiceCrossY - quaternionY * twiceCrossX - turningZ;
+    for (let row = start; row < end; row++) {
+      const vector = 3 * row;
+      const indexA = this.bodyA[row]!;
+      const indexB = this.bodyB[row]!;
+      const atA = 3 * indexA;
+      const atB = 3 * indexB;
+      const normalX = normal[vector]!;
+      const normalY = normal[vector + 1]!;
+      const normalZ = normal[vector + 2]!;
+      // how far apart the anchors are now, as `currentSeparation`
+      let movedX = centers[atA]! - startCenters[atA]! - (centers[atB]! - startCenters[atB]!);
+      let movedY = centers[atA + 1]! - startCenters[atA + 1]! - (centers[atB + 1]! - startCenters[atB + 1]!);
+      let movedZ = centers[atA + 2]! - startCenters[atA + 2]! - (centers[atB + 2]! - startCenters[atB + 2]!);
+      if (travelling[indexA]) {
+        const turn = 4 * indexA;
+        const turningX = turningA[vector]!;
+        const turningY = turningA[vector + 1]!;
+        const turningZ = turningA[vector + 2]!;
+        const quaternionX = turns[turn]!;
+        const quaternionY = turns[turn + 1]!;
+        const quaternionZ = turns[turn + 2]!;
+        const quaternionW = turns[turn + 3]!;
+        const twiceCrossX = 2 * (quaternionY * turningZ - quaternionZ * turningY);
+        const twiceCrossY = 2 * (quaternionZ * turningX - quaternionX * turningZ);
+        const twiceCrossZ = 2 * (quaternionX * turningY - quaternionY * turningX);
+        movedX += turningX + quaternionW * twiceCrossX + quaternionY * twiceCrossZ - quaternionZ * twiceCrossY - turningX;
+        movedY += turningY + quaternionW * twiceCrossY + quaternionZ * twiceCrossX - quaternionX * twiceCrossZ - turningY;
+        movedZ += turningZ + quaternionW * twiceCrossZ + quaternionX * twiceCrossY - quaternionY * twiceCrossX - turningZ;
+      }
+      if (travelling[indexB]) {
+        const turn = 4 * indexB;
+        const turningX = turningB[vector]!;
+        const turningY = turningB[vector + 1]!;
+        const turningZ = turningB[vector + 2]!;
+        const quaternionX = turns[turn]!;
+        const quaternionY = turns[turn + 1]!;
+        const quaternionZ = turns[turn + 2]!;
+        const quaternionW = turns[turn + 3]!;
+        const twiceCrossX = 2 * (quaternionY * turningZ - quaternionZ * turningY);
+        const twiceCrossY = 2 * (quaternionZ * turningX - quaternionX * turningZ);
+        const twiceCrossZ = 2 * (quaternionX * turningY - quaternionY * turningX);
+        movedX -= turningX + quaternionW * twiceCrossX + quaternionY * twiceCrossZ - quaternionZ * twiceCrossY - turningX;
+        movedY -= turningY + quaternionW * twiceCrossY + quaternionZ * twiceCrossX - quaternionX * twiceCrossZ - turningY;
+        movedZ -= turningZ + quaternionW * twiceCrossZ + quaternionX * twiceCrossY - quaternionY * twiceCrossX - turningZ;
+      }
+      const separation = this.separation[row]! + movedX * normalX + movedY * normalY + movedZ * normalZ;
+      // what the row asks for, as `normalTerms`
+      const rowSoftness = moving[indexB] ? softness : fixedSoftness;
+      let bias = 0;
+      let massScale = 1;
+      let impulseScale = 0;
+      if (separation > 0) bias = separation / substep;
+      else if (rowSoftness) {
+        bias = Math.max(rowSoftness.biasRate * separation, -MAX_PUSH_OUT_SPEED);
+        massScale = rowSoftness.massScale;
+        impulseScale = rowSoftness.impulseScale;
+      }
+      // how fast the anchors move apart, as `normalSpeed`
+      const armAX = anchorA[vector]!;
+      const armAY = anchorA[vector + 1]!;
+      const armAZ = anchorA[vector + 2]!;
+      const armBX = anchorB[vector]!;
+      const armBY = anchorB[vector + 1]!;
+      const armBZ = anchorB[vector + 2]!;
+      const relativeX = velocities[atA]! + spins[atA + 1]! * armAZ - spins[atA + 2]! * armAY - (velocities[atB]! + spins[atB + 1]! * armBZ - spins[atB + 2]! * armBY);
+      const relativeY = velocities[atA + 1]! + spins[atA + 2]! * armAX - spins[atA]! * armAZ - (velocities[atB + 1]! + spins[atB + 2]! * armBX - spins[atB]! * armBZ);
+      const relativeZ = velocities[atA + 2]! + spins[atA]! * armAY - spins[atA + 1]! * armAX - (velocities[atB + 2]! + spins[atB]! * armBY - spins[atB + 1]! * armBX);
+      const normalSpeed = relativeX * normalX + relativeY * normalY + relativeZ * normalZ;
+      const old = normalImpulse[row]!;
+      const change = -this.normalMass[row]! * massScale * (normalSpeed + bias) - impulseScale * old;
+      // and the new impulse, as `setNormalImpulse`
+      const impulse = Math.max(old + change, 0);
+      const applied = impulse - old;
+      normalImpulse[row] = impulse;
+      if (maxNormalImpulse[row] === 0 && impulse > 0) this.approachSpeed[row] = normalSpeed;
+      maxNormalImpulse[row] = Math.max(maxNormalImpulse[row]!, impulse);
+      if (applied === 0) continue;
+      const impulseX = normalX * applied;
+      const impulseY = normalY * applied;
+      const impulseZ = normalZ * applied;
+      if (moving[indexA]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexA, impulseX, impulseY, impulseZ, armAX, armAY, armAZ);
+      if (moving[indexB]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexB, -impulseX, -impulseY, -impulseZ, armBX, armBY, armBZ);
     }
-    if (travelling[indexB]) {
-      const turn = 4 * indexB;
-      const turningX = turningB[vector]!;
-      const turningY = turningB[vector + 1]!;
-      const turningZ = turningB[vector + 2]!;
-      const quaternionX = turns[turn]!;
-      const quaternionY = turns[turn + 1]!;
-      const quaternionZ = turns[turn + 2]!;
-      const quaternionW = turns[turn + 3]!;
-      const twiceCrossX = 2 * (quaternionY * turningZ - quaternionZ * turningY);
-      const twiceCrossY = 2 * (quaternionZ * turningX - quaternionX * turningZ);
-      const twiceCrossZ = 2 * (quaternionX * turningY - quaternionY * turningX);
-      movedX -= turningX + quaternionW * twiceCrossX + quaternionY * twiceCrossZ - quaternionZ * twiceCrossY - turningX;
-      movedY -= turningY + quaternionW * twiceCrossY + quaternionZ * twiceCrossX - quaternionX * twiceCrossZ - turningY;
-      movedZ -= turningZ + quaternionW * twiceCrossZ + quaternionX * twiceCrossY - quaternionY * twiceCrossX - turningZ;
-    }
-    const separation = this.separation[row]! + movedX * normalX + movedY * normalY + movedZ * normalZ;
-    // what the row asks for, as `normalTerms`
-    let bias = 0;
-    let massScale = 1;
-    let impulseScale = 0;
-    if (separation > 0) bias = separation / substep;
-    else if (softness) {
-      bias = Math.max(softness.biasRate * separation, -MAX_PUSH_OUT_SPEED);
-      massScale = softness.massScale;
-      impulseScale = softness.impulseScale;
-    }
-    // how fast the anchors move apart, as `normalSpeed`
-    const armAX = anchorA[vector]!;
-    const armAY = anchorA[vector + 1]!;
-    const armAZ = anchorA[vector + 2]!;
-    const armBX = anchorB[vector]!;
-    const armBY = anchorB[vector + 1]!;
-    const armBZ = anchorB[vector + 2]!;
-    const relativeX = velocities[atA]! + spins[atA + 1]! * armAZ - spins[atA + 2]! * armAY - (velocities[atB]! + spins[atB + 1]! * armBZ - spins[atB + 2]! * armBY);
-    const relativeY = velocities[atA + 1]! + spins[atA + 2]! * armAX - spins[atA]! * armAZ - (velocities[atB + 1]! + spins[atB + 2]! * armBX - spins[atB]! * armBZ);
-    const relativeZ = velocities[atA + 2]! + spins[atA]! * armAY - spins[atA + 1]! * armAX - (velocities[atB + 2]! + spins[atB]! * armBY - spins[atB + 1]! * armBX);
-    const normalSpeed = relativeX * normalX + relativeY * normalY + relativeZ * normalZ;
-    const old = normalImpulse[row]!;
-    const change = -this.normalMass[row]! * massScale * (normalSpeed + bias) - impulseScale * old;
-    // and the new impulse, as `setNormalImpulse`
-    const impulse = Math.max(old + change, 0);
-    const applied = impulse - old;
-    normalImpulse[row] = impulse;
-    if (maxNormalImpulse[row] === 0 && impulse > 0) this.approachSpeed[row] = normalSpeed;
-    maxNormalImpulse[row] = Math.max(maxNormalImpulse[row]!, impulse);
-    if (applied === 0) return;
-    const impulseX = normalX * applied;
-    const impulseY = normalY * applied;
-    const impulseZ = normalZ * applied;
-    if (moving[indexA]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexA, impulseX, impulseY, impulseZ, armAX, armAY, armAZ);
-    if (moving[indexB]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexB, -impulseX, -impulseY, -impulseZ, armBX, armBY, armBZ);
   }
 
   /**
@@ -711,54 +951,161 @@ export class ContactTable {
    */
   private solveFriction(bodies: BodyTable): void {
     const { velocities, spins, inverseMasses, inverseInertias, moving } = bodies;
-    const { bodyA, bodyB, anchorA, anchorB, tangentA, tangentB, friction, normalImpulse, frictionImpulseA, frictionImpulseB, tangentMassA, tangentMassB } = this;
-    for (let row = 0; row < this.count; row++) {
-      const limit = friction[row]! * normalImpulse[row]!;
-      // a point not pushing, as most of a scattering pile's are (they are only near enough to
-      // touch within the step), and not holding on: its friction would come out nothing again
-      if (limit === 0 && frictionImpulseA[row] === 0 && frictionImpulseB[row] === 0) continue;
-      const vector = 3 * row;
-      const indexA = bodyA[row]!;
-      const indexB = bodyB[row]!;
+    const { bodyA, bodyB, anchorA, anchorB, tangentA, tangentB, friction, normalImpulse, frictionImpulseA, frictionImpulseB, tangentMassA, tangentMassB, patchStarts } = this;
+    // a patch at a time, its bodies' velocities in locals, as `solveNormalPatches`
+    const patchCount = patchStarts.length - 1;
+    for (let patch = 0; patch < patchCount; patch++) {
+      const start = patchStarts[patch]!;
+      const end = patchStarts[patch + 1]!;
+      const indexA = bodyA[start]!;
+      const indexB = bodyB[start]!;
       const atA = 3 * indexA;
       const atB = 3 * indexB;
-      const armAX = anchorA[vector]!;
-      const armAY = anchorA[vector + 1]!;
-      const armAZ = anchorA[vector + 2]!;
-      const armBX = anchorB[vector]!;
-      const armBY = anchorB[vector + 1]!;
-      const armBZ = anchorB[vector + 2]!;
-      const relativeX = velocities[atA]! + spins[atA + 1]! * armAZ - spins[atA + 2]! * armAY - (velocities[atB]! + spins[atB + 1]! * armBZ - spins[atB + 2]! * armBY);
-      const relativeY = velocities[atA + 1]! + spins[atA + 2]! * armAX - spins[atA]! * armAZ - (velocities[atB + 1]! + spins[atB + 2]! * armBX - spins[atB]! * armBZ);
-      const relativeZ = velocities[atA + 2]! + spins[atA]! * armAY - spins[atA + 1]! * armAX - (velocities[atB + 2]! + spins[atB]! * armBY - spins[atB + 1]! * armBX);
-      const tangentAX = tangentA[vector]!;
-      const tangentAY = tangentA[vector + 1]!;
-      const tangentAZ = tangentA[vector + 2]!;
-      const tangentBX = tangentB[vector]!;
-      const tangentBY = tangentB[vector + 1]!;
-      const tangentBZ = tangentB[vector + 2]!;
-      const speedA = relativeX * tangentAX + relativeY * tangentAY + relativeZ * tangentAZ;
-      const speedB = relativeX * tangentBX + relativeY * tangentBY + relativeZ * tangentBZ;
-      const oldA = frictionImpulseA[row]!;
-      const oldB = frictionImpulseB[row]!;
-      let newA = oldA - tangentMassA[row]! * speedA;
-      let newB = oldB - tangentMassB[row]! * speedB;
-      const size = Math.sqrt(newA * newA + newB * newB);
-      if (size > limit) {
-        const shrink = size > 0 ? limit / size : 0;
-        newA *= shrink;
-        newB *= shrink;
+      const movingA = moving[indexA] !== 0;
+      const movingB = moving[indexB] !== 0;
+      // read in at the patch's first row with something to do: most of a scattering pile's have none
+      let loaded = false;
+      let velocityAX = 0;
+      let velocityAY = 0;
+      let velocityAZ = 0;
+      let spinAX = 0;
+      let spinAY = 0;
+      let spinAZ = 0;
+      let velocityBX = 0;
+      let velocityBY = 0;
+      let velocityBZ = 0;
+      let spinBX = 0;
+      let spinBY = 0;
+      let spinBZ = 0;
+      let massA = 0;
+      let massB = 0;
+      let xxA = 0;
+      let xyA = 0;
+      let xzA = 0;
+      let yyA = 0;
+      let yzA = 0;
+      let zzA = 0;
+      let xxB = 0;
+      let xyB = 0;
+      let xzB = 0;
+      let yyB = 0;
+      let yzB = 0;
+      let zzB = 0;
+      let pushed = false;
+      for (let row = start; row < end; row++) {
+        const limit = friction[row]! * normalImpulse[row]!;
+        // a point not pushing, as most of a scattering pile's are (they are only near enough to
+        // touch within the step), and not holding on: its friction would come out nothing again
+        if (limit === 0 && frictionImpulseA[row] === 0 && frictionImpulseB[row] === 0) continue;
+        if (!loaded) {
+          loaded = true;
+          velocityAX = velocities[atA]!;
+          velocityAY = velocities[atA + 1]!;
+          velocityAZ = velocities[atA + 2]!;
+          spinAX = spins[atA]!;
+          spinAY = spins[atA + 1]!;
+          spinAZ = spins[atA + 2]!;
+          velocityBX = velocities[atB]!;
+          velocityBY = velocities[atB + 1]!;
+          velocityBZ = velocities[atB + 2]!;
+          spinBX = spins[atB]!;
+          spinBY = spins[atB + 1]!;
+          spinBZ = spins[atB + 2]!;
+          massA = inverseMasses[indexA]!;
+          massB = inverseMasses[indexB]!;
+          const tensorA = 6 * indexA;
+          const tensorB = 6 * indexB;
+          xxA = inverseInertias[tensorA]!;
+          xyA = inverseInertias[tensorA + 1]!;
+          xzA = inverseInertias[tensorA + 2]!;
+          yyA = inverseInertias[tensorA + 3]!;
+          yzA = inverseInertias[tensorA + 4]!;
+          zzA = inverseInertias[tensorA + 5]!;
+          xxB = inverseInertias[tensorB]!;
+          xyB = inverseInertias[tensorB + 1]!;
+          xzB = inverseInertias[tensorB + 2]!;
+          yyB = inverseInertias[tensorB + 3]!;
+          yzB = inverseInertias[tensorB + 4]!;
+          zzB = inverseInertias[tensorB + 5]!;
+        }
+        const vector = 3 * row;
+        const armAX = anchorA[vector]!;
+        const armAY = anchorA[vector + 1]!;
+        const armAZ = anchorA[vector + 2]!;
+        const armBX = anchorB[vector]!;
+        const armBY = anchorB[vector + 1]!;
+        const armBZ = anchorB[vector + 2]!;
+        const relativeX = velocityAX + spinAY * armAZ - spinAZ * armAY - (velocityBX + spinBY * armBZ - spinBZ * armBY);
+        const relativeY = velocityAY + spinAZ * armAX - spinAX * armAZ - (velocityBY + spinBZ * armBX - spinBX * armBZ);
+        const relativeZ = velocityAZ + spinAX * armAY - spinAY * armAX - (velocityBZ + spinBX * armBY - spinBY * armBX);
+        const tangentAX = tangentA[vector]!;
+        const tangentAY = tangentA[vector + 1]!;
+        const tangentAZ = tangentA[vector + 2]!;
+        const tangentBX = tangentB[vector]!;
+        const tangentBY = tangentB[vector + 1]!;
+        const tangentBZ = tangentB[vector + 2]!;
+        const speedA = relativeX * tangentAX + relativeY * tangentAY + relativeZ * tangentAZ;
+        const speedB = relativeX * tangentBX + relativeY * tangentBY + relativeZ * tangentBZ;
+        const oldA = frictionImpulseA[row]!;
+        const oldB = frictionImpulseB[row]!;
+        let newA = oldA - tangentMassA[row]! * speedA;
+        let newB = oldB - tangentMassB[row]! * speedB;
+        const size = Math.sqrt(newA * newA + newB * newB);
+        if (size > limit) {
+          const shrink = size > 0 ? limit / size : 0;
+          newA *= shrink;
+          newB *= shrink;
+        }
+        frictionImpulseA[row] = newA;
+        frictionImpulseB[row] = newB;
+        const changeA = newA - oldA;
+        const changeB = newB - oldB;
+        if (changeA === 0 && changeB === 0) continue;
+        pushed = true;
+        const impulseX = tangentAX * changeA + tangentBX * changeB;
+        const impulseY = tangentAY * changeA + tangentBY * changeB;
+        const impulseZ = tangentAZ * changeA + tangentBZ * changeB;
+        // the push, as `pushBody`: A along the impulse, B against it
+        if (movingA) {
+          velocityAX = velocityAX + impulseX * massA;
+          velocityAY = velocityAY + impulseY * massA;
+          velocityAZ = velocityAZ + impulseZ * massA;
+          const angularX = armAY * impulseZ - armAZ * impulseY;
+          const angularY = armAZ * impulseX - armAX * impulseZ;
+          const angularZ = armAX * impulseY - armAY * impulseX;
+          spinAX = spinAX + (xxA * angularX + xyA * angularY + xzA * angularZ);
+          spinAY = spinAY + (xyA * angularX + yyA * angularY + yzA * angularZ);
+          spinAZ = spinAZ + (xzA * angularX + yzA * angularY + zzA * angularZ);
+        }
+        if (movingB) {
+          velocityBX = velocityBX + -impulseX * massB;
+          velocityBY = velocityBY + -impulseY * massB;
+          velocityBZ = velocityBZ + -impulseZ * massB;
+          const angularX = armBY * -impulseZ - armBZ * -impulseY;
+          const angularY = armBZ * -impulseX - armBX * -impulseZ;
+          const angularZ = armBX * -impulseY - armBY * -impulseX;
+          spinBX = spinBX + (xxB * angularX + xyB * angularY + xzB * angularZ);
+          spinBY = spinBY + (xyB * angularX + yyB * angularY + yzB * angularZ);
+          spinBZ = spinBZ + (xzB * angularX + yzB * angularY + zzB * angularZ);
+        }
       }
-      frictionImpulseA[row] = newA;
-      frictionImpulseB[row] = newB;
-      const changeA = newA - oldA;
-      const changeB = newB - oldB;
-      if (changeA === 0 && changeB === 0) continue;
-      const impulseX = tangentAX * changeA + tangentBX * changeB;
-      const impulseY = tangentAY * changeA + tangentBY * changeB;
-      const impulseZ = tangentAZ * changeA + tangentBZ * changeB;
-      if (moving[indexA]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexA, impulseX, impulseY, impulseZ, armAX, armAY, armAZ);
-      if (moving[indexB]) pushBody(velocities, spins, inverseMasses, inverseInertias, indexB, -impulseX, -impulseY, -impulseZ, armBX, armBY, armBZ);
+      if (!pushed) continue;
+      if (movingA) {
+        velocities[atA] = velocityAX;
+        velocities[atA + 1] = velocityAY;
+        velocities[atA + 2] = velocityAZ;
+        spins[atA] = spinAX;
+        spins[atA + 1] = spinAY;
+        spins[atA + 2] = spinAZ;
+      }
+      if (movingB) {
+        velocities[atB] = velocityBX;
+        velocities[atB + 1] = velocityBY;
+        velocities[atB + 2] = velocityBZ;
+        spins[atB] = spinBX;
+        spins[atB + 1] = spinBY;
+        spins[atB + 2] = spinBZ;
+      }
     }
   }
 
@@ -937,6 +1284,15 @@ function pushBody(velocities: Float64Array, spins: Float64Array, inverseMasses: 
   spins[vector] = spins[vector]! + (xx * angularX + xy * angularY + xz * angularZ);
   spins[vector + 1] = spins[vector + 1]! + (xy * angularX + yy * angularY + yz * angularZ);
   spins[vector + 2] = spins[vector + 2]! + (xz * angularX + yz * angularY + zz * angularZ);
+}
+
+/** `inverseMassAt` from a body's mass and inverse inertia already read: m⁻¹ + (r × n)ᵀ I⁻¹ (r × n), or 0 for a body that doesn't move. */
+function inverseMassOf(moving: boolean, inverseMass: number, xx: number, xy: number, xz: number, yy: number, yz: number, zz: number, armX: number, armY: number, armZ: number, directionX: number, directionY: number, directionZ: number): number {
+  if (!moving) return 0;
+  const crossX = armY * directionZ - armZ * directionY;
+  const crossY = armZ * directionX - armX * directionZ;
+  const crossZ = armX * directionY - armY * directionX;
+  return inverseMass + crossX * (xx * crossX + xy * crossY + xz * crossZ) + crossY * (xy * crossX + yy * crossY + yz * crossZ) + crossZ * (xz * crossX + yz * crossY + zz * crossZ);
 }
 
 /** `BodyTable.inverseMassAlong` over its arrays: m⁻¹ + (r × n)ᵀ I⁻¹ (r × n), or 0 for a body that doesn't move. */

@@ -58,6 +58,14 @@ XPBD (extended position-based dynamics, Müller et al. 2020) moves the bodies ap
 pushing on their velocities, then works the velocities out from how far they moved. Its joints and
 contacts give less under load.
 
+::: warning XPBD is behind
+Soft step is where eulerjs's work goes, and XPBD lags it. Its contacts are objects made afresh
+every step rather than rows of flat arrays, so it is the slower solver, slower than cannon-es on
+an awake pile of boxes; bodies that only touch sleep one by one rather than as a pile; and its
+stacks creep. It is kept for what it does better, the stiff joints and contacts below, but choose
+it only for that.
+:::
+
 ### Which to choose
 
 | | Soft step | XPBD |

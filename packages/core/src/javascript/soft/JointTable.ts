@@ -60,8 +60,8 @@ export class JointTable {
     let row = 0;
     for (const [joint, [solverA, solverB]] of joints) {
       this.joints[row] = joint;
-      this.bodyA[row] = bodies.indexOf.get(solverA)!;
-      this.bodyB[row] = solverB ? bodies.indexOf.get(solverB)! : -1;
+      this.bodyA[row] = solverA.tableRow;
+      this.bodyB[row] = solverB ? solverB.tableRow : -1;
       writeOffset(this.anchorA, row, solverA, joint.anchorA);
       if (solverB) writeOffset(this.anchorB, row, solverB, joint.anchorB);
       else writeOffset(this.anchorB, row, undefined, joint.anchorB);

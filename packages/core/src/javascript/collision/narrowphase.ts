@@ -31,8 +31,70 @@ export type CollisionTest<ColliderA extends Collider = Collider, ColliderB exten
   margin: number,
 ) => void;
 
+/** A contact point a pool owns, to be overwritten when the pool is next reset. */
+interface PooledPoint extends ContactPoint {
+  readonly pointA: Vector3;
+  readonly pointB: Vector3;
+  readonly normal: Vector3;
+  readonly pooled: true;
+}
+
+/**
+ * Contact points for a collision system to reuse from step to step, rather than make tens of
+ * thousands a second afresh: while it is in use (see `usePointPool`), the collision tests take
+ * their points from it, and resetting it hands the same points out again. So nothing may keep a
+ * point beyond the step it was found for.
+ */
+export class ContactPointPool {
+  private readonly points: PooledPoint[] = [];
+  private used = 0;
+
+  /** Hands out every point again, from the first. */
+  reset(): void {
+    this.used = 0;
+  }
+
+  /** A point with these values. */
+  take(pointA: Vector3, pointB: Vector3, normal: Vector3, depth: number): ContactPoint {
+    let point = this.points[this.used];
+    if (!point) {
+      point = { pointA: new Vector3(), pointB: new Vector3(), normal: new Vector3(), depth: 0, pooled: true };
+      this.points.push(point);
+    }
+    this.used++;
+    point.pointA.copy(pointA);
+    point.pointB.copy(pointB);
+    point.normal.copy(normal);
+    point.depth = depth;
+    return point;
+  }
+}
+
+let pointPool: ContactPointPool | undefined;
+
+/** Has the collision tests take their points from `pool` until it is called again; none: new points. */
+export function usePointPool(pool: ContactPointPool | undefined): void {
+  pointPool = pool;
+}
+
+/** A contact point with these values (copied): from the pool in use, if there is one. */
+export function contactPoint(pointA: Vector3, pointB: Vector3, normal: Vector3, depth: number): ContactPoint {
+  return pointPool ? pointPool.take(pointA, pointB, normal, depth) : { pointA: pointA.clone(), pointB: pointB.clone(), normal: normal.clone(), depth };
+}
+
+const swapScratch = new Vector3();
+
 /** The tests by the first shape's name, then the second's: looked up for every pair of colliders, without making a key string for each. */
 const collisionTests = new Map<string, Map<string, CollisionTest>>();
+
+/**
+ * The last pair of shapes looked up, and its test, whether forward or reversed: pairs of colliders
+ * come mostly in runs of the same two shapes, and each lookup is two of names.
+ */
+let lastShapeA = '';
+let lastShapeB = '';
+let lastTest: CollisionTest | undefined;
+let lastReversed = false;
 
 /**
  * Teaches the engine how two shapes collide. Register each pair once; the reverse order is
@@ -46,6 +108,7 @@ export function registerCollisionTest<ColliderA extends Collider, ColliderB exte
   let byOther = collisionTests.get(shapeA);
   if (!byOther) collisionTests.set(shapeA, (byOther = new Map()));
   byOther.set(shapeB, test as CollisionTest);
+  lastShapeA = lastShapeB = '';
 }
 
 /**
@@ -53,23 +116,37 @@ export function registerCollisionTest<ColliderA extends Collider, ColliderB exte
  * None if they don't touch or no test is registered for the pair of shapes.
  */
 export function collide(colliderA: Collider, poseA: ColliderPose, colliderB: Collider, poseB: ColliderPose, contacts: ContactPoint[], margin = 0): void {
-  const forward = collisionTests.get(colliderA.shape)?.get(colliderB.shape);
-  if (forward) {
-    forward(colliderA, poseA, colliderB, poseB, contacts, margin);
+  const shapeA = colliderA.shape;
+  const shapeB = colliderB.shape;
+  if (shapeA !== lastShapeA || shapeB !== lastShapeB) {
+    const forward = collisionTests.get(shapeA)?.get(shapeB);
+    lastShapeA = shapeA;
+    lastShapeB = shapeB;
+    lastTest = forward ?? collisionTests.get(shapeB)?.get(shapeA);
+    lastReversed = !forward;
+  }
+  const test = lastTest;
+  if (!test) return;
+  if (!lastReversed) {
+    test(colliderA, poseA, colliderB, poseB, contacts, margin);
     return;
   }
-  const reverse = collisionTests.get(colliderB.shape)?.get(colliderA.shape);
-  if (!reverse) return;
   const firstNew = contacts.length;
-  reverse(colliderB, poseB, colliderA, poseA, contacts, margin);
+  test(colliderB, poseB, colliderA, poseA, contacts, margin);
   for (let index = firstNew; index < contacts.length; index++) {
     const contact = contacts[index]!;
-    contacts[index] = { pointA: contact.pointB, pointB: contact.pointA, normal: contact.normal.negate(), depth: contact.depth };
+    if ((contact as Partial<PooledPoint>).pooled) {
+      // the pool's own: swapped where it is
+      swapScratch.copy(contact.pointA);
+      contact.pointA.copy(contact.pointB);
+      contact.pointB.copy(swapScratch);
+      contact.normal.negate();
+    } else contacts[index] = { pointA: contact.pointB, pointB: contact.pointA, normal: contact.normal.negate(), depth: contact.depth };
   }
 }
 
 function addContact(contacts: ContactPoint[], pointA: Vector3, pointB: Vector3, normal: Vector3, depth: number): void {
-  contacts.push({ pointA: pointA.clone(), pointB: pointB.clone(), normal: normal.clone(), depth });
+  contacts.push(contactPoint(pointA, pointB, normal, depth));
 }
 
 const difference = new Vector3();
@@ -183,6 +260,8 @@ const edgeMiddleA = new Vector3();
 const edgeMiddleB = new Vector3();
 /** A face clipped by four planes has at most eight corners: two pools of them, clipped from one into the other. */
 const clipPool = Array.from({ length: 8 }, () => new Vector3());
+/** A face's contacts, while they are reduced to the four that span them. */
+const facePatch: ContactPoint[] = [];
 const clipOtherPool = Array.from({ length: 8 }, () => new Vector3());
 
 function orientedBox(box: BoxCollider, pose: ColliderPose, target: OrientedBox): OrientedBox {
@@ -330,9 +409,11 @@ function faceContacts(reference: OrientedBox, incident: OrientedBox, axisIndex: 
   }
   // a turned face clips to as many as eight corners: the four that span them do as well
   if (contacts.length - firstNew > FACE_PATCH_POINTS) {
-    const patch = contacts.splice(firstNew);
-    reduceManifold(patch, FACE_PATCH_POINTS);
-    for (const contact of patch) contacts.push(contact);
+    facePatch.length = 0;
+    for (let index = firstNew; index < contacts.length; index++) facePatch.push(contacts[index]!);
+    contacts.length = firstNew;
+    reduceManifold(facePatch, FACE_PATCH_POINTS);
+    for (const contact of facePatch) contacts.push(contact);
   }
 }
 
@@ -378,11 +459,15 @@ function edgeContact(boxA: OrientedBox, boxB: OrientedBox, indexA: number, index
     if (index !== indexA) edgeMiddleA.addScaledVector(boxA.axes[index]!, Math.sign(boxA.axes[index]!.dot(axis)) * boxA.halfExtents[index]!);
     if (index !== indexB) edgeMiddleB.addScaledVector(boxB.axes[index]!, -Math.sign(boxB.axes[index]!.dot(axis)) * boxB.halfExtents[index]!);
   }
-  const [pointA, pointB] = closestPointsOnSegments(edgeMiddleA, boxA.axes[indexA]!, boxA.halfExtents[indexA]!, edgeMiddleB, boxB.axes[indexB]!, boxB.halfExtents[indexB]!);
-  addContact(contacts, pointA, pointB, axis.negate(), -separation);
+  closestPointsOnSegments(edgeMiddleA, boxA.axes[indexA]!, boxA.halfExtents[indexA]!, edgeMiddleB, boxB.axes[indexB]!, boxB.halfExtents[indexB]!, edgePointA, edgePointB);
+  addContact(contacts, edgePointA, edgePointB, axis.negate(), -separation);
 }
 
-/** Closest points of two segments, each given by its middle, unit direction and half length. */
+const between = new Vector3();
+const edgePointA = new Vector3();
+const edgePointB = new Vector3();
+
+/** Closest points of two segments, each given by its middle, unit direction and half length, into `targetA` and `targetB`. */
 export function closestPointsOnSegments(
   middleA: Vector3,
   directionA: Vector3,
@@ -390,8 +475,10 @@ export function closestPointsOnSegments(
   middleB: Vector3,
   directionB: Vector3,
   halfLengthB: number,
-): [Vector3, Vector3] {
-  const between = new Vector3().subVectors(middleA, middleB);
+  targetA: Vector3,
+  targetB: Vector3,
+): void {
+  between.subVectors(middleA, middleB);
   const alignment = directionA.dot(directionB);
   const alongA = directionA.dot(between);
   const alongB = directionB.dot(between);
@@ -401,7 +488,8 @@ export function closestPointsOnSegments(
   let offsetB = MathUtils.clamp(alignment * offsetA + alongB, -halfLengthB, halfLengthB);
   offsetA = MathUtils.clamp(alignment * offsetB - alongA, -halfLengthA, halfLengthA);
   offsetB = MathUtils.clamp(alignment * offsetA + alongB, -halfLengthB, halfLengthB);
-  return [middleA.clone().addScaledVector(directionA, offsetA), middleB.clone().addScaledVector(directionB, offsetB)];
+  targetA.copy(middleA).addScaledVector(directionA, offsetA);
+  targetB.copy(middleB).addScaledVector(directionB, offsetB);
 }
 
 registerCollisionTest('sphere', 'sphere', sphereSphere);

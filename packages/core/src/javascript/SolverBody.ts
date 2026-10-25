@@ -1,6 +1,6 @@
 import { Quaternion, Vector3 } from 'three';
 import type { Body } from '../Body.js';
-import type { Collider } from '../colliders/Collider.js';
+import type { Collider, ColliderPose } from '../colliders/Collider.js';
 import { RigidBodyState } from '../RigidBodyState.js';
 import type { PairSearchEntry } from './collision/CollisionSystem.js';
 import type { SubstepState } from './positional.js';
@@ -30,8 +30,20 @@ export class SolverBody extends RigidBodyState {
   boundsStale = true;
   /** The collision system's entry for it, in its search for pairs that may touch. */
   pairSearchEntry: PairSearchEntry | undefined;
+  /** Its colliders' poses, in their order, as the collision system last worked them out, and the stamp of the step it did. */
+  readonly colliderPoses: ColliderPose[] = [];
+  posesStamp = -1;
   /** Goes up whenever the mass properties change, so copies of them know to refresh. */
   massVersion = 0;
+  /**
+   * The bodies it fell asleep with, all of them touching or tied together, itself among them:
+   * they wake together, as they fell asleep. Undefined when it is awake, or fell asleep on its own.
+   */
+  sleepingIsland: readonly SolverBody[] | undefined;
+  /** Where it is among the bodies the backend groups into islands, while it does. */
+  islandIndex = -1;
+  /** Its row in the soft-step solver's table of bodies, while a step works on them. */
+  tableRow = -1;
   /** Bodies this one doesn't collide with, and how many joints say so. */
   private readonly ignoredBodies = new Map<SolverBody, number>();
   private asleep: boolean;
@@ -108,7 +120,8 @@ export class SolverBody extends RigidBodyState {
   }
 
   ignoresCollisionsWith(other: SolverBody): boolean {
-    return this.ignoredBodies.has(other);
+    // asked of every pair that may touch, and most bodies ignore none
+    return this.ignoredBodies.size > 0 && this.ignoredBodies.has(other);
   }
 
   wakeUp(): void {
@@ -117,6 +130,11 @@ export class SolverBody extends RigidBodyState {
     this.stillTime = 0;
     this.restingPosition.copy(this.position);
     this.restingQuaternion.copy(this.quaternion);
+    // what it fell asleep with wakes with it: asleep, those were resting on one another
+    const island = this.sleepingIsland;
+    if (!island) return;
+    for (const body of island) body.sleepingIsland = undefined;
+    for (const body of island) if (body.isSleeping) body.wakeUp();
   }
 
   sleep(): void {

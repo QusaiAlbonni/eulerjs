@@ -267,9 +267,17 @@ What wakes a body:
 - a new pose or velocity set by hand, or a new collider or mass;
 - `body.wakeUp()`.
 
-Bodies joined by joints sleep and wake together, since one asleep on its own would act like a
-wall to the others. A body touching one that won't sleep (a `canSleep: false` lift, a moving
-kinematic platform) stays awake too, so it rides along instead of being left in mid-air.
+Bodies that touch, or are joined by joints, sleep and wake together: a pile, a stack, a ragdoll
+lying on a crate. Once every one of them has been still long enough, all of them fall asleep at
+once, and waking any of them wakes them all, so a pile is never half asleep, its sleeping half a
+wall to the rest. Static bodies hold things up without joining them, so two piles on the same
+floor sleep and wake on their own. A body touching one that won't sleep (a `canSleep: false`
+lift, a moving kinematic platform) stays awake too, so it rides along instead of being left in
+mid-air.
+
+That is under the soft-step solver, the default. Under XPBD, bodies that only touch sleep one by
+one, since a tall stack of its creeps too much ever to be still all at once; joined ones still
+sleep and wake together.
 
 ```ts
 const lift = world.addBody(liftMesh, { density: 400, collider: 'box', canSleep: false }); // never sleeps

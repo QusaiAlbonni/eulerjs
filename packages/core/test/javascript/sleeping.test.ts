@@ -69,6 +69,39 @@ describe('sleeping', () => {
     expect(box.position.x).toBeGreaterThan(0.2);
   });
 
+  it('keeps a pile awake while any of it still moves, so none of it is a wall to the rest', () => {
+    const world = groundWorld();
+    // a wide slab, and a box sliding across it without friction
+    const slab = world.addBody(new Body({ massProperties: MassProperties.box(new Vector3(6, 1, 2), 5000), position: new Vector3(0, 0.5, 0), colliders: [new BoxCollider({ size: new Vector3(6, 1, 2) })] }));
+    const slider = world.addBody(new Body({ massProperties: MassProperties.box(new Vector3(1, 1, 1), 10), position: new Vector3(-2, 1.5, 0), velocity: new Vector3(0.3, 0, 0), colliders: [new BoxCollider({ size: new Vector3(1, 1, 1), friction: 0 })] }));
+    // still from the start, but under a box on the move: not asleep, if only for a moment, until it is woken again
+    let slabSlept = false;
+    for (let step = 0; step < 120; step++) {
+      world.fixedStep();
+      slabSlept ||= slab.isSleeping;
+    }
+    expect(slabSlept).toBe(false);
+    expect(slider.velocity.x).toBeCloseTo(0.3, 2);
+    // once the box comes to rest, both sleep
+    slider.velocity.set(0, 0, 0);
+    runFor(world, 1);
+    expect(slider.isSleeping).toBe(true);
+    expect(slab.isSleeping).toBe(true);
+  });
+
+  it('wakes a whole sleeping pile when any of it is woken', () => {
+    const world = groundWorld();
+    const stack = [0, 1, 2].map((level) => world.addBody(crate(new Vector3(0, 0.5 + level, 0))));
+    runFor(world, 2);
+    for (const box of stack) expect(box.isSleeping).toBe(true);
+    // woken on the world's next step, and the boxes under it with it
+    stack[2]!.wakeUp();
+    world.fixedStep();
+    for (const box of stack) expect(box.isSleeping).toBe(false);
+    runFor(world, 2);
+    for (const box of stack) expect(box.isSleeping).toBe(true);
+  });
+
   it('holds up a light body set gently on it without waking', () => {
     const world = groundWorld();
     const base = world.addBody(crate(new Vector3(0, 0.5, 0), { mass: 100 }));

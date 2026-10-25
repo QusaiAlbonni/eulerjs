@@ -45,6 +45,9 @@ export class JavaScriptBackend implements PhysicsBackend {
    * most of the bodies.
    */
   private movingList: SolverBody[] = [];
+  /** The union-find of `putIslandsToSleep`, reused from step to step: each body's parent, and whether each island may sleep. */
+  private islandParents = new Int32Array(0);
+  private islandReady = new Uint8Array(0);
   private readonly constraints = new Map<Joint, Constraint>();
   /** The same constraints, in an array to go through quickly on every substep. */
   private constraintList: Constraint[] = [];
@@ -221,7 +224,8 @@ export class JavaScriptBackend implements PhysicsBackend {
     const colliding = this.collisions.hasColliders(this.bodyList);
     if (!colliding) {
       this.collisions.sensorOverlaps = [];
-      this.collisions.touchingPairs = [];
+      this.collisions.touchingFirst.length = 0;
+      this.collisions.touchingSecond.length = 0;
     }
     if (this.constraints.size === 0 && !colliding) {
       for (const body of moving) integrateBody(body, gravity, timestep);
@@ -265,14 +269,77 @@ export class JavaScriptBackend implements PhysicsBackend {
   private putStillBodiesToSleep(timeToSleep: number): void {
     if (!this.movingList.some((body) => body.isReadyToSleep(timeToSleep))) return;
     const keptAwake = this.keptAwakeByContact();
-    const groups = this.jointGroups();
-    for (const body of this.movingList) {
-      if (!body.isReadyToSleep(timeToSleep) || keptAwake.has(body)) continue;
-      const group = groups.get(body);
-      if (!group) body.sleep();
-      else if (group.every((member) => !member.isMovable || (member.isReadyToSleep(timeToSleep) && !keptAwake.has(member)))) for (const member of group) member.sleep();
+    if (this.softStep) this.putIslandsToSleep(timeToSleep, keptAwake);
+    else {
+      const groups = this.jointGroups();
+      for (const body of this.movingList) {
+        if (!body.isReadyToSleep(timeToSleep) || keptAwake.has(body)) continue;
+        const group = groups.get(body);
+        if (!group) body.sleep();
+        else if (group.every((member) => !member.isMovable || (member.isReadyToSleep(timeToSleep) && !keptAwake.has(member)))) for (const member of group) member.sleep();
+      }
     }
     this.collisions.bodiesFellAsleep();
+  }
+
+  /**
+   * Under soft step, bodies sleep island by island: the awake bodies touching or tied to one
+   * another, directly or through others of them (static ones hold things up without joining
+   * them), fall asleep together once every one of them is ready, and wake together (see
+   * `SolverBody.sleepingIsland`), so a pile is never half asleep, its sleeping half a wall to the
+   * rest. XPBD sleeps body by body instead: a tall stack of its creeps too much to be still all at once.
+   */
+  private putIslandsToSleep(timeToSleep: number, keptAwake: ReadonlySet<SolverBody>): void {
+    const bodies = this.movingList;
+    const count = bodies.length;
+    for (let index = 0; index < count; index++) bodies[index]!.islandIndex = index;
+    if (this.islandParents.length < count) this.islandParents = new Int32Array(2 * count);
+    const parents = this.islandParents;
+    for (let index = 0; index < count; index++) parents[index] = index;
+    const rootOf = (index: number): number => {
+      let root = index;
+      while (parents[root] !== root) root = parents[root] = parents[parents[root]!]!;
+      return root;
+    };
+    // the lower root of the two joined becomes the other's, so islands come out the same whatever order they are joined in
+    const join = (first: SolverBody, second: SolverBody) => {
+      if (!first.isMovable || !second.isMovable || first.isSleeping || second.isSleeping) return;
+      const firstRoot = rootOf(first.islandIndex);
+      const secondRoot = rootOf(second.islandIndex);
+      if (firstRoot < secondRoot) parents[secondRoot] = firstRoot;
+      else if (secondRoot < firstRoot) parents[firstRoot] = secondRoot;
+    };
+    const { touchingFirst, touchingSecond } = this.collisions;
+    for (let index = 0; index < touchingFirst.length; index++) join(touchingFirst[index]!, touchingSecond[index]!);
+    for (const constraint of this.constraintList) {
+      const tied = constraint.bodies ?? [];
+      for (let index = 1; index < tied.length; index++) join(tied[0]!, tied[index]!);
+    }
+    // an island sleeps when every body of it is ready to and none is kept awake
+    if (this.islandReady.length < count) this.islandReady = new Uint8Array(2 * count);
+    const ready = this.islandReady;
+    ready.fill(1, 0, count);
+    for (let index = 0; index < count; index++) {
+      const body = bodies[index]!;
+      if (body.isSleeping || !body.isMovable) ready[index] = 0;
+      else if (!body.isReadyToSleep(timeToSleep) || keptAwake.has(body)) ready[rootOf(index)] = 0;
+    }
+    const islands = new Map<number, SolverBody[]>();
+    for (let index = 0; index < count; index++) {
+      const body = bodies[index]!;
+      if (body.isSleeping || !body.isMovable) continue;
+      const root = rootOf(index);
+      if (!ready[root]) continue;
+      let island = islands.get(root);
+      if (!island) islands.set(root, (island = []));
+      island.push(body);
+    }
+    for (const island of islands.values()) {
+      for (const body of island) {
+        body.sleep();
+        body.sleepingIsland = island.length > 1 ? island : undefined;
+      }
+    }
   }
 
   /** The sets of awake bodies that joints tie together, each body mapped to its set. */
@@ -300,7 +367,8 @@ export class JavaScriptBackend implements PhysicsBackend {
         else neighbours.set(one, [other]);
       }
     };
-    for (const [first, second] of this.collisions.touchingPairs) link(first, second);
+    const { touchingFirst, touchingSecond } = this.collisions;
+    for (let index = 0; index < touchingFirst.length; index++) link(touchingFirst[index]!, touchingSecond[index]!);
     for (const constraint of this.constraintList) {
       const bodies = constraint.bodies ?? [];
       for (let index = 1; index < bodies.length; index++) link(bodies[0]!, bodies[index]!);

@@ -7,7 +7,7 @@ import { SphereCollider } from '../../colliders/SphereCollider.js';
 import { forEachStandInSphere } from './capsule.js';
 import { closestPointOnTriangle, hullOfBox, place, withEdges } from './convex.js';
 import type { PlacedHull } from './convex.js';
-import { clipPolygon, closestPointsOnSegments } from './narrowphase.js';
+import { clipPolygon, closestPointsOnSegments, contactPoint } from './narrowphase.js';
 import type { ContactPoint } from './narrowphase.js';
 import { standInFor } from './round.js';
 
@@ -75,6 +75,10 @@ const triangleNormal = new Vector3();
 const edgeScratch = new Vector3();
 const otherEdgeScratch = new Vector3();
 const offsetScratch = new Vector3();
+/** Where contacts are worked out before they are copied into contact points. */
+const contactPointA = new Vector3();
+const contactPointB = new Vector3();
+const normalScratch = new Vector3();
 
 function normalOf(first: Vector3, second: Vector3, third: Vector3, target: Vector3): Vector3 {
   return target.crossVectors(edgeScratch.subVectors(second, first), otherEdgeScratch.subVectors(third, first)).normalize();
@@ -88,8 +92,7 @@ function sphereTriangle(sphere: SphereCollider, center: Vector3, first: Vector3,
   if (oneSided && height < 0) {
     // centre behind a one-sided surface: out through the front, if it is behind the triangle itself
     if (nearest.distanceToSquared(offsetScratch.copy(center).addScaledVector(triangleNormal, -height)) > 1e-18) return;
-    const normal = triangleNormal.clone();
-    contacts.push({ pointA: center.clone().addScaledVector(normal, -sphere.radius), pointB: nearest, normal, depth: sphere.radius - height });
+    contacts.push(contactPoint(contactPointA.copy(center).addScaledVector(triangleNormal, -sphere.radius), nearest, triangleNormal, sphere.radius - height));
     return;
   }
   const distance = nearest.distanceTo(center);
@@ -97,8 +100,8 @@ function sphereTriangle(sphere: SphereCollider, center: Vector3, first: Vector3,
   // straight below the centre is the face itself, wherever on it; off to the side, an edge or corner, which may not push
   const onFace = nearest.distanceToSquared(offsetScratch.copy(center).addScaledVector(triangleNormal, -height)) <= 1e-18 * (1 + center.lengthSq());
   if (!onFace && activeEdges !== ALL_EDGES && !onActiveFeature(nearest, [first, second, third], activeEdges)) return;
-  const normal = distance > 1e-12 ? new Vector3().subVectors(center, nearest).divideScalar(distance) : triangleNormal.clone().multiplyScalar(height < 0 ? -1 : 1);
-  contacts.push({ pointA: center.clone().addScaledVector(normal, -sphere.radius), pointB: nearest, normal, depth: sphere.radius - distance });
+  const normal = distance > 1e-12 ? normalScratch.subVectors(center, nearest).divideScalar(distance) : normalScratch.copy(triangleNormal).multiplyScalar(height < 0 ? -1 : 1);
+  contacts.push(contactPoint(contactPointA.copy(center).addScaledVector(normal, -sphere.radius), nearest, normal, sphere.radius - distance));
 }
 
 /** Whether `point`, the nearest point of the triangle to something, is inside it or on an edge or corner that may push. */
@@ -216,7 +219,7 @@ function triangleFaceContacts(placed: PlacedHull, corners: readonly Vector3[], a
   for (const point of polygon) {
     const separation = axis.dot(point) - planeOffset;
     if (separation > margin) continue;
-    contacts.push({ pointA: point, pointB: point.clone().addScaledVector(axis, -separation), normal: axis.clone(), depth: -separation });
+    contacts.push(contactPoint(point, contactPointB.copy(point).addScaledVector(axis, -separation), axis, -separation));
   }
 }
 
@@ -234,7 +237,7 @@ function hullFaceContacts(placed: PlacedHull, faceIndex: number, corners: readon
   for (const point of polygon) {
     const separation = faceNormal.dot(point) - offset;
     if (separation > margin) continue;
-    contacts.push({ pointA: point.clone().addScaledVector(faceNormal, -separation), pointB: point, normal: faceNormal.clone().negate(), depth: -separation });
+    contacts.push(contactPoint(contactPointA.copy(point).addScaledVector(faceNormal, -separation), point, normalScratch.copy(faceNormal).negate(), -separation));
   }
 }
 
@@ -258,13 +261,6 @@ function edgeContact(placed: PlacedHull, corners: readonly Vector3[], edge: Edge
   const triangleStart = corners[edge.triangleEdge]!;
   const triangleVector = new Vector3().subVectors(corners[(edge.triangleEdge + 1) % 3]!, triangleStart);
   const triangleMiddle = triangleStart.clone().addScaledVector(triangleVector, 0.5);
-  const [pointA, pointB] = closestPointsOnSegments(
-    hullMiddle,
-    hullVector.clone().normalize(),
-    hullVector.length() / 2,
-    triangleMiddle,
-    triangleVector.clone().normalize(),
-    triangleVector.length() / 2,
-  );
-  contacts.push({ pointA, pointB, normal: edge.axis.clone(), depth: -edge.separation });
+  closestPointsOnSegments(hullMiddle, hullVector.clone().normalize(), hullVector.length() / 2, triangleMiddle, triangleVector.clone().normalize(), triangleVector.length() / 2, contactPointA, contactPointB);
+  contacts.push(contactPoint(contactPointA, contactPointB, edge.axis, -edge.separation));
 }

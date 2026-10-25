@@ -21,7 +21,6 @@ const GYROSCOPIC_TOLERANCE_SQUARED = 1e-24;
 export class BodyTable {
   count = 0;
   bodies: readonly SolverBody[] = [];
-  readonly indexOf = new Map<SolverBody, number>();
 
   centers = new Float64Array(0);
   orientations = new Float64Array(0);
@@ -62,10 +61,9 @@ export class BodyTable {
     this.bodies = bodies;
     this.count = bodies.length;
     if (this.inverseMasses.length < bodies.length) this.grow(Math.max(bodies.length, 2 * this.inverseMasses.length, 16));
-    this.indexOf.clear();
     for (let index = 0; index < bodies.length; index++) {
       const body = bodies[index]!;
-      this.indexOf.set(body, index);
+      body.tableRow = index;
       if (this.loadedBodies[index] !== body || this.loadedMassVersions[index] !== body.massVersion) this.loadMass(index, body);
       const moving = body.isMovable;
       this.moving[index] = moving ? 1 : 0;

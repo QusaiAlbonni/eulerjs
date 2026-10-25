@@ -69,7 +69,7 @@ export class SoftStepSolver {
     bodies.load(this.withStaticsReached(movingBodies, manifolds, jointBodies, sixDofBodies));
     this.contactTable.prepare(manifolds, bodies);
     this.jointTable.prepare(jointBodies, bodies, substep);
-    this.sixDofTable.prepare(sixDofBodies, bodies);
+    this.sixDofTable.prepare(sixDofBodies);
     for (let substepIndex = 0; substepIndex < settings.substeps; substepIndex++) {
       bodies.integrateVelocities(substep, settings.gravity);
       this.jointTable.updateArms(bodies);

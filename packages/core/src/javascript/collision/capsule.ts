@@ -43,6 +43,8 @@ const alongSegment = new Vector3();
 const candidate = new Vector3();
 const localPoint = new Vector3();
 const inverseRotation = new Matrix3();
+const nearestOnA = new Vector3();
+const nearestOnB = new Vector3();
 
 /** The stand-in sphere of `capsule`'s radius, centred at `center`. */
 function sphereOf(capsule: CapsuleCollider, center: Vector3): SphereCollider {
@@ -71,7 +73,7 @@ function capsuleCapsule(capsuleA: CapsuleCollider, poseA: ColliderPose, capsuleB
   segmentMiddleAndDirection(otherStart, otherEnd, otherMiddle, otherDirection);
   otherStandIn.radius = capsuleB.radius;
 
-  const [nearestOnA, nearestOnB] = closestPointsOnSegments(middle, direction, capsuleA.length / 2, otherMiddle, otherDirection, capsuleB.length / 2);
+  closestPointsOnSegments(middle, direction, capsuleA.length / 2, otherMiddle, otherDirection, capsuleB.length / 2, nearestOnA, nearestOnB);
   const parallel = capsuleA.length > 0 && capsuleB.length > 0 && Math.abs(direction.dot(otherDirection)) > PARALLEL;
   if (parallel) {
     // lying along each other: hold them apart at both ends of the shorter, against the nearest point of the longer

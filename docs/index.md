@@ -94,15 +94,15 @@ a Ryzen 5 4600H, lower is better.
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| 125 boxes settled | **5 ms** | 206 ms | eulerjs 41× faster |
-| 64 rocks (42-corner hulls) | **69 ms** | 6079 ms | eulerjs 88× faster |
-| Mixed pile: 400 boxes, balls, cylinders and rocks | **647 ms** | 8269 ms | eulerjs 12.8× faster |
-| Pyramid of 1,015 boxes | **3979 ms** | 12594 ms | eulerjs 3.2× faster |
-| 125 boxes falling into a pile | **107 ms** | 234 ms | eulerjs 2.2× faster |
-| 400 spheres, never sleeping | **75 ms** | 101 ms | eulerjs 1.3× faster |
-| The city at rest | **4 ms** | 118 ms | eulerjs 30× faster |
-| The city, 25 ragdolls walking | **352 ms** | 652 ms | eulerjs 1.9× faster |
-| The city, 100 ragdolls walking | **1996 ms** | 2800 ms | eulerjs 1.4× faster |
+| 125 boxes settled | **5 ms** | 204 ms | eulerjs 41× faster |
+| 64 rocks (42-corner hulls) | **59 ms** | 6093 ms | eulerjs 103× faster |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | **447 ms** | 8125 ms | eulerjs 18.2× faster |
+| Pyramid of 1,015 boxes | **3156 ms** | 10864 ms | eulerjs 3.4× faster |
+| 125 boxes falling into a pile | **94 ms** | 216 ms | eulerjs 2.3× faster |
+| 400 spheres, never sleeping | **76 ms** | 101 ms | eulerjs 1.3× faster |
+| The city at rest | **4 ms** | 120 ms | eulerjs 30× faster |
+| The city, 25 ragdolls walking | **282 ms** | 629 ms | eulerjs 2.2× faster |
+| The city, 100 ragdolls walking | **1261 ms** | 2670 ms | eulerjs 2.1× faster |
 
 | Accuracy | eulerjs | cannon-es |
 | --- | ---: | ---: |

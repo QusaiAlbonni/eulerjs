@@ -6,7 +6,7 @@ import type { PlaneCollider } from '../../colliders/PlaneCollider.js';
 import type { SphereCollider } from '../../colliders/SphereCollider.js';
 import { shapeDistance } from './gjk.js';
 import type { SupportShape } from './gjk.js';
-import { closestPointsOnSegments, registerCollisionTest } from './narrowphase.js';
+import { closestPointsOnSegments, contactPoint, registerCollisionTest } from './narrowphase.js';
 import type { ContactPoint } from './narrowphase.js';
 import { FACE_PATCH_POINTS, reduceManifold } from './manifoldReduction.js';
 
@@ -117,22 +117,58 @@ function store(vector: Vector3, data: Float64Array, at: number): void {
   data[at + 2] = vector.z;
 }
 
+/**
+ * Places the hull at `pose`: its vertices and face planes in world space. Written out over
+ * numbers, the rotation and position read once, as three.js's `applyMatrix3` and `add` work each
+ * vertex and normal out: they would read the rotation's nine numbers afresh for every one.
+ */
 function placeInto(placed: PlacedHull, pose: ColliderPose): void {
   const { hull, vertices, normals, offsets, center, vertexData, normalData } = placed;
-  center.set(0, 0, 0);
+  const elements = pose.rotation.elements;
+  const e0 = elements[0]!;
+  const e1 = elements[1]!;
+  const e2 = elements[2]!;
+  const e3 = elements[3]!;
+  const e4 = elements[4]!;
+  const e5 = elements[5]!;
+  const e6 = elements[6]!;
+  const e7 = elements[7]!;
+  const e8 = elements[8]!;
+  const { x: positionX, y: positionY, z: positionZ } = pose.position;
+  let centerX = 0;
+  let centerY = 0;
+  let centerZ = 0;
   const localVertices = hull.vertices;
   for (let index = 0; index < localVertices.length; index++) {
-    const vertex = vertices[index]!.copy(localVertices[index]!).applyMatrix3(pose.rotation).add(pose.position);
-    store(vertex, vertexData, index * 3);
-    center.add(vertex);
+    const { x, y, z } = localVertices[index]!;
+    const vertexX = e0 * x + e3 * y + e6 * z + positionX;
+    const vertexY = e1 * x + e4 * y + e7 * z + positionY;
+    const vertexZ = e2 * x + e5 * y + e8 * z + positionZ;
+    vertices[index]!.set(vertexX, vertexY, vertexZ);
+    const at = index * 3;
+    vertexData[at] = vertexX;
+    vertexData[at + 1] = vertexY;
+    vertexData[at + 2] = vertexZ;
+    centerX += vertexX;
+    centerY += vertexY;
+    centerZ += vertexZ;
   }
-  center.divideScalar(vertices.length);
+  center.set(centerX, centerY, centerZ).divideScalar(vertices.length);
   const faces = hull.faces;
   for (let index = 0; index < faces.length; index++) {
     const face = faces[index]!;
-    const normal = normals[index]!.copy(face.normal).applyMatrix3(pose.rotation);
-    store(normal, normalData, index * 3);
-    offsets[index] = normal.dot(vertices[face.vertexIndices[0]!]!);
+    const { x, y, z } = face.normal;
+    const normalX = e0 * x + e3 * y + e6 * z;
+    const normalY = e1 * x + e4 * y + e7 * z;
+    const normalZ = e2 * x + e5 * y + e8 * z;
+    normals[index]!.set(normalX, normalY, normalZ);
+    const at = index * 3;
+    normalData[at] = normalX;
+    normalData[at + 1] = normalY;
+    normalData[at + 2] = normalZ;
+    // the plane's offset, from its first corner, as `dot`
+    const corner = face.vertexIndices[0]! * 3;
+    offsets[index] = normalX * vertexData[corner]! + normalY * vertexData[corner + 1]! + normalZ * vertexData[corner + 2]!;
   }
   placed.edgesPlaced = false;
   placed.origin.copy(pose.position);
@@ -187,6 +223,9 @@ function bestFace(placed: PlacedHull, other: PlacedHull, margin: number): { inde
     const normalY = normals[index * 3 + 1]!;
     const normalZ = normals[index * 3 + 2]!;
     let deepest = normalX * vertices[vertex * 3]! + normalY * vertices[vertex * 3 + 1]! + normalZ * vertices[vertex * 3 + 2]!;
+    // any vertex's depth bounds the deepest's: a face it leaves no further outside than the best
+    // can't be the best, nor say they are apart, the best being within the margin
+    if (deepest - placed.offsets[index]! <= bestSeparation) continue;
     for (let moved = true; moved; ) {
       moved = false;
       for (let at = neighbourStarts[vertex]!, end = neighbourStarts[vertex + 1]!; at < end; at++) {
@@ -464,7 +503,7 @@ function contactsBy(decision: Decision, hullA: PlacedHull, hullB: PlacedHull, co
       // still apart within the margin, the one point where they are nearest
       const between = shapeDistance(supportOf(hullA), supportOf(hullB));
       if (between.overlapping || between.distance > margin) return false;
-      contacts.push({ pointA: between.pointA, pointB: between.pointB, normal: between.normal, depth: -between.distance });
+      contacts.push(contactPoint(between.pointA, between.pointB, between.normal, -between.distance));
       return true;
     }
     case 'edges': {
@@ -574,18 +613,15 @@ function faceContacts(reference: PlacedHull, faceIndex: number, incident: Placed
     [polygon, other] = [other, polygon];
   }
 
-  const normalFromBToA = referenceIsA ? referenceNormal.clone().negate() : referenceNormal.clone();
-  const patch: ContactPoint[] = [];
+  const normalFromBToA = referenceIsA ? normalScratch.copy(referenceNormal).negate() : normalScratch.copy(referenceNormal);
+  const patch = facePatch;
+  patch.length = 0;
   for (let index = 0; index < count; index++) {
     const point = polygon[index]!;
     const separation = referenceNormal.dot(point) - referenceOffset;
     if (separation > margin) continue;
-    const onReference = point.clone().addScaledVector(referenceNormal, -separation);
-    patch.push(
-      referenceIsA
-        ? { pointA: onReference, pointB: point.clone(), normal: normalFromBToA.clone(), depth: -separation }
-        : { pointA: point.clone(), pointB: onReference, normal: normalFromBToA.clone(), depth: -separation },
-    );
+    const onReference = onReferenceScratch.copy(point).addScaledVector(referenceNormal, -separation);
+    patch.push(referenceIsA ? contactPoint(onReference, point, normalFromBToA, -separation) : contactPoint(point, onReference, normalFromBToA, -separation));
   }
   reduceManifold(patch, FACE_PATCH_POINTS);
   for (const contact of patch) contacts.push(contact);
@@ -609,16 +645,16 @@ function clipInto(polygon: readonly Vector3[], count: number, normal: Vector3, o
 }
 
 function edgeContact(edge: EdgeAxis, contacts: ContactPoint[]): void {
-  const segment = ([start, end]: [Vector3, Vector3]) => {
-    const middle = new Vector3().addVectors(start, end).multiplyScalar(0.5);
-    const direction = new Vector3().subVectors(end, start);
-    const halfLength = direction.length() / 2;
-    return { middle, direction: direction.normalize(), halfLength };
-  };
-  const onA = segment(edge.edgeA);
-  const onB = segment(edge.edgeB);
-  const [pointA, pointB] = closestPointsOnSegments(onA.middle, onA.direction, onA.halfLength, onB.middle, onB.direction, onB.halfLength);
-  contacts.push({ pointA, pointB, normal: edge.axis.clone().negate(), depth: -edge.separation });
+  const [startA, endA] = edge.edgeA;
+  const [startB, endB] = edge.edgeB;
+  edgeMiddleA.addVectors(startA, endA).multiplyScalar(0.5);
+  edgeDirectionA.subVectors(endA, startA);
+  const halfLengthA = edgeDirectionA.length() / 2;
+  edgeMiddleB.addVectors(startB, endB).multiplyScalar(0.5);
+  edgeDirectionB.subVectors(endB, startB);
+  const halfLengthB = edgeDirectionB.length() / 2;
+  closestPointsOnSegments(edgeMiddleA, edgeDirectionA.normalize(), halfLengthA, edgeMiddleB, edgeDirectionB.normalize(), halfLengthB, contactPointA, contactPointB);
+  contacts.push(contactPoint(contactPointA, contactPointB, normalScratch.copy(edge.axis).negate(), -edge.separation));
 }
 
 function convexConvex(colliderA: ConvexCollider, poseA: ColliderPose, colliderB: ConvexCollider, poseB: ColliderPose, contacts: ContactPoint[], margin: number): void {
@@ -638,7 +674,7 @@ function convexPlane(convex: ConvexCollider, convexPose: ColliderPose, plane: Pl
     const corner = cornerScratch.copy(vertex).applyMatrix3(convexPose.rotation).add(convexPose.position);
     const height = normal.dot(corner) - planeHeight;
     if (height >= margin) continue;
-    contacts.push({ pointA: corner.clone(), pointB: corner.clone().addScaledVector(normal, -height), normal: normal.clone(), depth: -height });
+    contacts.push(contactPoint(corner, contactPointB.copy(corner).addScaledVector(normal, -height), normal, -height));
   }
 }
 
@@ -654,13 +690,8 @@ export function sphereConvex(sphere: SphereCollider, spherePose: ColliderPose, c
 
   if (outermostDistance <= 0) {
     // centre inside the hull: push it out through the nearest face
-    const normal = normals[outermost]!.clone();
-    contacts.push({
-      pointA: center.clone().addScaledVector(normal, -sphere.radius),
-      pointB: center.clone().addScaledVector(normal, -outermostDistance),
-      normal,
-      depth: sphere.radius - outermostDistance,
-    });
+    const normal = normals[outermost]!;
+    contacts.push(contactPoint(contactPointA.copy(center).addScaledVector(normal, -sphere.radius), contactPointB.copy(center).addScaledVector(normal, -outermostDistance), normal, sphere.radius - outermostDistance));
     return;
   }
   // No point of the hull is nearer the centre than the plane of a face the centre is in front of:
@@ -686,10 +717,21 @@ export function sphereConvex(sphere: SphereCollider, spherePose: ColliderPose, c
     }
   }
   if (nearestDistance === Infinity || nearestDistance >= sphere.radius + margin || nearestDistance < 1e-12) return;
-  const normal = new Vector3().subVectors(center, nearestPoint).divideScalar(nearestDistance);
-  contacts.push({ pointA: center.clone().addScaledVector(normal, -sphere.radius), pointB: nearestPoint.clone(), normal, depth: sphere.radius - nearestDistance });
+  const normal = normalScratch.subVectors(center, nearestPoint).divideScalar(nearestDistance);
+  contacts.push(contactPoint(contactPointA.copy(center).addScaledVector(normal, -sphere.radius), nearestPoint, normal, sphere.radius - nearestDistance));
 }
 
+/** Where contacts are worked out before they are copied into contact points. */
+const contactPointA = new Vector3();
+const contactPointB = new Vector3();
+const normalScratch = new Vector3();
+const onReferenceScratch = new Vector3();
+const edgeMiddleA = new Vector3();
+const edgeMiddleB = new Vector3();
+const edgeDirectionA = new Vector3();
+const edgeDirectionB = new Vector3();
+/** A face's contacts, while they are reduced to the four that span them. */
+const facePatch: ContactPoint[] = [];
 const candidatePoint = new Vector3();
 const nearestPoint = new Vector3();
 const edgeFirstSecond = new Vector3();

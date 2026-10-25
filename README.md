@@ -35,7 +35,7 @@ its hull, not guessed from its bounding box, which cannon-es gets seven times to
 
 **It's fast where it counts.** Real scenes are mostly at rest, and eulerjs puts what's at rest to
 sleep and keeps it asleep, and still scenery costs next to nothing: a settled pile of boxes costs
-a fortieth of cannon-es's, a city full of props a thirtieth. Convex hulls collide nearly ninety
+a fortieth of cannon-es's, a city full of props a thirtieth. Convex hulls collide a hundred
 times faster. And with a crowd of ragdolls all awake and walking, it is still the faster of the two.
 
 **It's three.js through and through.** Give it a mesh and it works out the body: mass, centre of
@@ -56,18 +56,18 @@ sets Rapier beside them too.
 
 | Scene | eulerjs | cannon-es | |
 | --- | ---: | ---: | --- |
-| Pyramid of 1,015 boxes, standing | 3979 ms | 12594 ms | eulerjs 3.2× faster |
-| Mixed pile: 400 boxes, balls, cylinders and rocks | 647 ms | 8269 ms | **eulerjs 12.8× faster** |
-| 5,000 rays a step through 2,000 still shapes | 1862 ms | 29285 ms | **eulerjs 15.7× faster** |
-| 125 boxes falling into a pile | 107 ms | 234 ms | eulerjs 2.2× faster |
-| 125 boxes in a pile, never sleeping | 105 ms | 220 ms | eulerjs 2.1× faster |
-| 125 boxes settled, same sleep thresholds | 5 ms | 206 ms | **eulerjs 41× faster** |
-| 400 spheres spread out, never sleeping | 75 ms | 101 ms | eulerjs 1.3× faster |
-| 400 spheres, same sleep thresholds | 13 ms | 58 ms | eulerjs 4.5× faster |
-| 64 rocks (42-corner hulls), never sleeping | 69 ms | 6079 ms | **eulerjs 88× faster** |
-| The city, at rest (52 props) | 4 ms | 118 ms | **eulerjs 30× faster** |
-| The city, 25 ragdolls walking (327 bodies) | 352 ms | 652 ms | eulerjs 1.9× faster |
-| The city, 100 ragdolls walking (1152 bodies) | 1996 ms | 2800 ms | eulerjs 1.4× faster |
+| Pyramid of 1,015 boxes, standing | 3156 ms | 10864 ms | eulerjs 3.4× faster |
+| Mixed pile: 400 boxes, balls, cylinders and rocks | 447 ms | 8125 ms | **eulerjs 18.2× faster** |
+| 5,000 rays a step through 2,000 still shapes | 1481 ms | 21002 ms | **eulerjs 14.2× faster** |
+| 125 boxes falling into a pile | 94 ms | 216 ms | eulerjs 2.3× faster |
+| 125 boxes in a pile, never sleeping | 94 ms | 220 ms | eulerjs 2.3× faster |
+| 125 boxes settled, same sleep thresholds | 5 ms | 204 ms | **eulerjs 41× faster** |
+| 400 spheres spread out, never sleeping | 76 ms | 101 ms | eulerjs 1.3× faster |
+| 400 spheres, same sleep thresholds | 13 ms | 59 ms | eulerjs 4.5× faster |
+| 64 rocks (42-corner hulls), never sleeping | 59 ms | 6093 ms | **eulerjs 103× faster** |
+| The city, at rest (52 props) | 4 ms | 120 ms | **eulerjs 30× faster** |
+| The city, 25 ragdolls walking (327 bodies) | 282 ms | 629 ms | eulerjs 2.2× faster |
+| The city, 100 ragdolls walking (1152 bodies) | 1261 ms | 2670 ms | eulerjs 2.1× faster |
 
 | Accuracy (0 or the stated value is perfect) | eulerjs | cannon-es |
 | --- | ---: | ---: |
@@ -89,11 +89,12 @@ drives to walk with. Timings depend on the machine, so measure your own scenes t
 | `@eulerjs/core` | `World`, `Body`, `MassProperties`, `Voxels`, colliders, joints, the JavaScript backend, the plugin, behaviour and backend interfaces |
 | `@eulerjs/marine` | `SumOfSines` and `SpectralWaves` seas, `Ocean`, `Wind`, `Buoyancy`, `Foil` and polars, `WaterMesh`; `SpectralWater` in `@eulerjs/marine/webgpu` |
 | `@eulerjs/bvh` | `MeshCollider`: any triangle mesh as a static or kinematic collider, on three-mesh-bvh |
+| `@eulerjs/scene` | `ScenePhysics`: the bodies a three.js scene's `userData.physics` asks for; `EulerPhysics()`, a drop-in for three.js's `RapierPhysics`, `JoltPhysics` and `AmmoPhysics` |
 | `@eulerjs/vehicle` | `RaycastVehicle`: wheels on springs under a chassis, with tyres that grip up to a limit or slip tyres on a tyre curve, on any ground |
 
 All need `three` 0.166 or later as a peer dependency, except `@eulerjs/marine/webgpu`, the
 spectral sea's water, which needs 0.186 or later.
-`@eulerjs/bvh` also needs `three-mesh-bvh` 0.9 or later. Plugins that add collider
+`@eulerjs/bvh` also needs `three-mesh-bvh` 0.9 or later, and `@eulerjs/scene` needs both. Plugins that add collider
 shapes build on `@eulerjs/core/extend`.
 
 ## Using it
@@ -423,6 +424,10 @@ the sea out and drawing it.)
 | `sensors` | a trigger zone that lights up while anything is in it, and crates that flash when something starts touching them |
 | `terrain` | barrels, cones and balls rolling down a heightfield, and a torus knot as a triangle mesh with `@eulerjs/bvh` |
 | `solvers` | the same stack and pendulum solved by XPBD and by soft step side by side |
+
+`examples/three-addons` (`npm run dev:three-addons`) is three.js's own `physics_rapier_basic`,
+`physics_rapier_instancing` and `physics_rapier_terrain` examples, unchanged but for awaiting
+`EulerPhysics()` from `@eulerjs/scene` in place of `RapierPhysics()`.
 
 `examples/ocean` (`npm run dev:ocean`) is a spectral sea to the horizon with crates afloat on
 it, either layout to switch between and their costs shown; `?compare=1` measures both from three

@@ -1,6 +1,6 @@
 import { Box3, Matrix3, Quaternion, Vector3 } from 'three';
 import type { Contact } from '../../backend.js';
-import type { Collider } from '../../colliders/Collider.js';
+import type { Collider, ColliderPose } from '../../colliders/Collider.js';
 import type { SolverBody } from '../SolverBody.js';
 import { AabbTree } from './AabbTree.js';
 import type { TreeLeaf } from './AabbTree.js';
@@ -13,7 +13,7 @@ import { registerConvexCollisionTests } from './convex.js';
 import { registerHeightfieldCollisionTests } from './heightfield.js';
 import { registerRoundCollisionTests } from './round.js';
 import { reduceManifold } from './manifoldReduction.js';
-import { collide } from './narrowphase.js';
+import { collide, ContactPointPool, usePointPool } from './narrowphase.js';
 import type { ContactPoint } from './narrowphase.js';
 import { collidersOverlap } from './sweep.js';
 
@@ -24,7 +24,6 @@ interface PoseScratch {
 }
 
 const poseA: PoseScratch = { position: new Vector3(), quaternion: new Quaternion(), rotation: new Matrix3() };
-const poseB: PoseScratch = { position: new Vector3(), quaternion: new Quaternion(), rotation: new Matrix3() };
 const boundsScratch = new Box3();
 const wakeBounds = new Box3();
 export interface PairSearchEntry extends BroadphaseEntry<SolverBody> {
@@ -51,7 +50,10 @@ export interface SensorOverlap {
   readonly colliderB: Collider;
 }
 
-/** The contact points between two colliders, found once per step. */
+/**
+ * The contact points between two colliders, found once per step. The collision system reuses it,
+ * and its points, the next step: nothing may keep them beyond it.
+ */
 export interface Manifold {
   readonly bodyA: SolverBody;
   readonly bodyB: SolverBody;
@@ -66,6 +68,45 @@ interface CandidatePair {
   /** How far apart colliders may be and still become contacts: how far the bodies can close in a step. */
   margin: number;
 }
+
+/** A manifold the collision system fills afresh each step. */
+interface ReusedManifold extends Manifold {
+  bodyA: SolverBody;
+  bodyB: SolverBody;
+  colliderA: Collider;
+  colliderB: Collider;
+  readonly points: ContactPoint[];
+}
+
+/**
+ * Pairs of entries as numbers, the first's place in the sweep order times the count of entries
+ * plus the second's: in sweep order as numbers are, and sorted as fast. A list of them grows as
+ * it needs to and is reused from step to step.
+ */
+class PairKeys {
+  keys = new Float64Array(64);
+  count = 0;
+
+  push(key: number): void {
+    if (this.count === this.keys.length) {
+      const grown = new Float64Array(2 * this.keys.length);
+      grown.set(this.keys);
+      this.keys = grown;
+    }
+    this.keys[this.count++] = key;
+  }
+
+  clear(): void {
+    this.count = 0;
+  }
+
+  sort(): void {
+    this.keys.subarray(0, this.count).sort();
+  }
+}
+
+/** Stamps a step's collider poses, so each body's are worked out once a step (see `posesOf`); never the same twice, whichever world steps. */
+let poseStamp = 0;
 
 // An explicit call rather than an import for its side effects, which bundlers may drop.
 registerConvexCollisionTests();
@@ -87,7 +128,6 @@ const TOUCHING_GAP = 0.005;
  * bodies may close the gap to during the step. Every substep then solves those contacts.
  */
 export class CollisionSystem {
-  private candidatePairs: CandidatePair[] = [];
   /**
    * Every body with colliders, its swept bounds and how far it can travel in the step, kept from
    * step to step in the order the pair search last sorted them.
@@ -111,6 +151,22 @@ export class CollisionSystem {
   /** Whether bodies have fallen asleep since the search last put the fixed ones in the tree: until it does, they are among the entries only. */
   private sleepersOutsideTree = false;
   private stepNumber = 0;
+  /** The step's candidate pairs, the first `candidateCount` of them, the rest kept for later steps. */
+  private readonly candidatePool: CandidatePair[] = [];
+  private candidateCount = 0;
+  /** The pairs the sweep finds, and those found in the tree of fixed entries, as `PairKeys`. */
+  private readonly sweptPairs = new PairKeys();
+  private readonly behindPairs = new PairKeys();
+  /** The step's manifolds, and the objects and arrays they are made in, kept from step to step. */
+  private readonly manifoldList: ReusedManifold[] = [];
+  private readonly manifoldPool: ReusedManifold[] = [];
+  private readonly pointPool = new ContactPointPool();
+  /** The entry `collectBehind` and `collectWoken` look from, while they are queried with. */
+  private queriedEntry: PairSearchEntry | undefined;
+  /** What `forEachFixedOverlapping` is looking for, while it looks: made once, its tree query needs no new function each time. */
+  private overlapEntry: PairSearchEntry | undefined;
+  private overlapAxes: SweepAxes | undefined;
+  private overlapVisit: ((fixed: PairSearchEntry) => void) | undefined;
   private activeContacts: ContactConstraint[] = [];
   private patches: ContactPatch[] = [];
   /** The patches static friction holds on the current substep, reused from substep to substep. */
@@ -118,9 +174,11 @@ export class CollisionSystem {
 
   /**
    * The pairs of bodies that touched (or all but touched) when the last step began, at least one
-   * of which the solver moves: what keeps a body resting on one that won't sleep awake.
+   * of which the solver moves: what keeps a body resting on one that won't sleep awake. Pair `i`
+   * is `touchingFirst[i]` and `touchingSecond[i]`.
    */
-  touchingPairs: [SolverBody, SolverBody][] = [];
+  readonly touchingFirst: SolverBody[] = [];
+  readonly touchingSecond: SolverBody[] = [];
 
   /** The sensors that something overlapped during the last step, as found when the step began. */
   sensorOverlaps: SensorOverlap[] = [];
@@ -157,8 +215,10 @@ export class CollisionSystem {
     // sort, then their second. A moving entry's sweep forward finds its pairs with the entries
     // after it, moving or fixed, already in that order; its pairs with fixed entries before it,
     // which the tree finds, are kept apart, and merged in.
-    const swept: [PairSearchEntry, PairSearchEntry][] = [];
-    const behind: [PairSearchEntry, PairSearchEntry][] = [];
+    const swept = this.sweptPairs;
+    const behind = this.behindPairs;
+    swept.clear();
+    behind.clear();
     const { along, first: across, second: up } = axes;
     // every entry's bounds, in sweep order, along then across then up, low then high: read in the
     // innermost loop from one flat array rather than by axis name from each entry's box
@@ -190,68 +250,128 @@ export class CollisionSystem {
         if (sweep[otherAt]! > maxAlong) break;
         if (sweep[otherAt + 2]! > maxAcross || sweep[otherAt + 3]! < minAcross) continue;
         if (sweep[otherAt + 4]! > maxUp || sweep[otherAt + 5]! < minUp) continue;
-        swept.push([entry, entries[second]!]);
+        swept.push(first * count + second);
       }
-      this.forEachFixedOverlapping(entry, axes, (fixed) => {
-        if (fixed.order < entry.order) behind.push([fixed, entry]);
-      });
+      this.queriedEntry = entry;
+      this.forEachFixedOverlapping(entry, axes, this.collectBehind);
     }
     // A sleeping body that something comes at fast is woken; one just woken has no speed to wake
     // another, so which wake doesn't depend on the order the pairs are looked at in.
     for (const pairs of [swept, behind]) {
-      for (const [one, other] of pairs) {
-        wakeIfHitHard(one.item, other.item, wakeSpeed);
-        wakeIfHitHard(other.item, one.item, wakeSpeed);
+      for (let index = 0; index < pairs.count; index++) {
+        const key = pairs.keys[index]!;
+        const one = entries[Math.floor(key / count)]!.item;
+        const other = entries[key % count]!.item;
+        wakeIfHitHard(one, other, wakeSpeed);
+        wakeIfHitHard(other, one, wakeSpeed);
       }
     }
     afterWaking();
     // and what a woken body overlaps among the fixed ones matters now too: the ground under it
     for (const entry of entries) {
       if (!entry.fixed || entry.item.isSleeping || entry.item.type === 'static') continue;
-      this.forEachFixedOverlapping(entry, axes, (fixed) => {
-        const bothWoken = !fixed.item.isSleeping && fixed.item.type !== 'static';
-        if (!bothWoken || entry.order < fixed.order) behind.push(entry.order < fixed.order ? [entry, fixed] : [fixed, entry]);
-      });
+      this.queriedEntry = entry;
+      this.forEachFixedOverlapping(entry, axes, this.collectWoken);
     }
-    const found = mergeInSweepOrder(swept, behind.sort(bySweepOrder));
-    this.candidatePairs = [];
-    for (const [entryA, entryB] of found) {
+    this.queriedEntry = undefined;
+    behind.sort();
+    // the two lists merged, in sweep order
+    this.candidateCount = 0;
+    let fromSwept = 0;
+    let fromBehind = 0;
+    while (fromSwept < swept.count || fromBehind < behind.count) {
+      const takeSwept = fromBehind === behind.count || (fromSwept < swept.count && swept.keys[fromSwept]! <= behind.keys[fromBehind]!);
+      const key = takeSwept ? swept.keys[fromSwept++]! : behind.keys[fromBehind++]!;
+      const entryA = entries[Math.floor(key / count)]!;
+      const entryB = entries[key % count]!;
       const bodyA = entryA.item;
       const bodyB = entryB.item;
       if (!bodyA.isMovable && !bodyB.isMovable) continue;
       if (bodyA.ignoresCollisionsWith(bodyB)) continue;
-      const margin = contactMargin(entryA, entryB, timestep);
-      this.candidatePairs.push(bodyA.isMovable ? { bodyA, bodyB, margin } : { bodyA: bodyB, bodyB: bodyA, margin });
+      let candidate = this.candidatePool[this.candidateCount];
+      if (!candidate) {
+        candidate = { bodyA, bodyB, margin: 0 };
+        this.candidatePool.push(candidate);
+      }
+      this.candidateCount++;
+      candidate.bodyA = bodyA.isMovable ? bodyA : bodyB;
+      candidate.bodyB = bodyA.isMovable ? bodyB : bodyA;
+      candidate.margin = contactMargin(entryA, entryB, timestep);
     }
   }
+
+  /** A fixed entry the queried entry overlaps, from before it in the sweep: a pair the sweep forward misses. */
+  private readonly collectBehind = (fixed: PairSearchEntry): void => {
+    const entry = this.queriedEntry!;
+    if (fixed.order < entry.order) this.behindPairs.push(fixed.order * this.entries.length + entry.order);
+  };
+
+  /** A fixed entry a just woken one overlaps: a pair once, even when both have just woken. */
+  private readonly collectWoken = (fixed: PairSearchEntry): void => {
+    const entry = this.queriedEntry!;
+    const bothWoken = !fixed.item.isSleeping && fixed.item.type !== 'static';
+    const count = this.entries.length;
+    if (!bothWoken || entry.order < fixed.order) this.behindPairs.push(entry.order < fixed.order ? entry.order * count + fixed.order : fixed.order * count + entry.order);
+  };
 
   /**
    * The contact points between every pair of colliders of the candidate pairs, including points
    * up to the pair's margin apart. Body A of each is the one the solver can move, if only one can.
    */
-  findManifolds(): Manifold[] {
-    const manifolds: Manifold[] = [];
+  findManifolds(): readonly Manifold[] {
+    const manifolds = this.manifoldList;
+    manifolds.length = 0;
     this.sensorOverlaps = [];
-    this.touchingPairs = [];
-    for (const { bodyA, bodyB, margin } of this.candidatePairs) {
-      for (const colliderA of bodyA.colliders) {
-        colliderA.poseIn(bodyA, poseA);
-        for (const colliderB of bodyB.colliders) {
-          if (!colliderA.canCollideWith(colliderB)) continue;
-          colliderB.poseIn(bodyB, poseB);
-          if (colliderA.sensor || colliderB.sensor) {
-            // a sensor only notices what overlaps it
-            if (collidersOverlap(colliderA, poseA, colliderB, poseB)) this.sensorOverlaps.push({ bodyA, bodyB, colliderA, colliderB });
-            continue;
+    this.touchingFirst.length = 0;
+    this.touchingSecond.length = 0;
+    // last step's points and manifolds are done with: handed out again
+    this.pointPool.reset();
+    usePointPool(this.pointPool);
+    const stamp = ++poseStamp;
+    try {
+      for (let pairIndex = 0; pairIndex < this.candidateCount; pairIndex++) {
+        const { bodyA, bodyB, margin } = this.candidatePool[pairIndex]!;
+        const collidersA = bodyA.colliders;
+        const collidersB = bodyB.colliders;
+        const posesA = posesOf(bodyA, stamp);
+        const posesB = posesOf(bodyB, stamp);
+        for (let indexA = 0; indexA < collidersA.length; indexA++) {
+          const colliderA = collidersA[indexA]!;
+          const poseOfA = posesA[indexA]!;
+          for (let indexB = 0; indexB < collidersB.length; indexB++) {
+            const colliderB = collidersB[indexB]!;
+            if (!colliderA.canCollideWith(colliderB)) continue;
+            const poseOfB = posesB[indexB]!;
+            if (colliderA.sensor || colliderB.sensor) {
+              // a sensor only notices what overlaps it
+              if (collidersOverlap(colliderA, poseOfA, colliderB, poseOfB)) this.sensorOverlaps.push({ bodyA, bodyB, colliderA, colliderB });
+              continue;
+            }
+            // the next manifold's object, filled only if the pair has contacts
+            let manifold = this.manifoldPool[manifolds.length];
+            if (!manifold) {
+              manifold = { bodyA, bodyB, colliderA, colliderB, points: [] };
+              this.manifoldPool.push(manifold);
+            }
+            const points = manifold.points;
+            points.length = 0;
+            collide(colliderA, poseOfA, colliderB, poseOfB, points, margin);
+            reduceManifold(points);
+            if (points.length === 0) continue;
+            manifold.bodyA = bodyA;
+            manifold.bodyB = bodyB;
+            manifold.colliderA = colliderA;
+            manifold.colliderB = colliderB;
+            manifolds.push(manifold);
+            if (bodyB.type !== 'static' && points.some((point) => point.depth > -TOUCHING_GAP)) {
+              this.touchingFirst.push(bodyA);
+              this.touchingSecond.push(bodyB);
+            }
           }
-          const points: ContactPoint[] = [];
-          collide(colliderA, poseA, colliderB, poseB, points, margin);
-          reduceManifold(points);
-          if (points.length === 0) continue;
-          manifolds.push({ bodyA, bodyB, colliderA, colliderB, points });
-          if (bodyB.type !== 'static' && points.some((point) => point.depth > -TOUCHING_GAP)) this.touchingPairs.push([bodyA, bodyB]);
         }
       }
+    } finally {
+      usePointPool(undefined);
     }
     return manifolds;
   }
@@ -370,11 +490,18 @@ export class CollisionSystem {
 
   /** Calls `visit` with every fixed entry, but `entry` itself, whose bounds overlap `entry`'s. */
   private forEachFixedOverlapping(entry: PairSearchEntry, axes: SweepAxes, visit: (fixed: PairSearchEntry) => void): void {
-    this.fixedTree.query(entry.bounds, (fixed) => {
-      if (fixed !== entry && boundsOverlap(entry.bounds, fixed.bounds, axes)) visit(fixed);
-    });
-    for (const fixed of this.unboundedFixed) if (fixed !== entry && boundsOverlap(entry.bounds, fixed.bounds, axes)) visit(fixed);
+    this.overlapEntry = entry;
+    this.overlapAxes = axes;
+    this.overlapVisit = visit;
+    this.fixedTree.query(entry.bounds, this.visitIfOverlapping);
+    for (const fixed of this.unboundedFixed) this.visitIfOverlapping(fixed);
+    this.overlapEntry = this.overlapAxes = this.overlapVisit = undefined;
   }
+
+  private readonly visitIfOverlapping = (fixed: PairSearchEntry): void => {
+    const entry = this.overlapEntry!;
+    if (fixed !== entry && boundsOverlap(entry.bounds, fixed.bounds, this.overlapAxes!)) this.overlapVisit!(fixed);
+  };
 
   private placeFixed(entry: PairSearchEntry): void {
     const bounds = entry.bounds;
@@ -430,23 +557,18 @@ function contactMargin(entryA: PairSearchEntry, entryB: PairSearchEntry, timeste
   return closing < apart ? closing : apart;
 }
 
-function bySweepOrder(one: [PairSearchEntry, PairSearchEntry], other: [PairSearchEntry, PairSearchEntry]): number {
-  return one[0].order - other[0].order || one[1].order - other[1].order;
-}
-
-/** Two lists of pairs, each in sweep order, as one. */
-function mergeInSweepOrder(first: [PairSearchEntry, PairSearchEntry][], second: [PairSearchEntry, PairSearchEntry][]): [PairSearchEntry, PairSearchEntry][] {
-  if (second.length === 0) return first;
-  if (first.length === 0) return second;
-  const merged: [PairSearchEntry, PairSearchEntry][] = [];
-  let fromFirst = 0;
-  let fromSecond = 0;
-  while (fromFirst < first.length && fromSecond < second.length) {
-    merged.push(bySweepOrder(first[fromFirst]!, second[fromSecond]!) <= 0 ? first[fromFirst++]! : second[fromSecond++]!);
-  }
-  while (fromFirst < first.length) merged.push(first[fromFirst++]!);
-  while (fromSecond < second.length) merged.push(second[fromSecond++]!);
-  return merged;
+/**
+ * The poses of a body's colliders, in its colliders' order, worked out once a step, the first time
+ * it is in a pair: a body touching eight others would otherwise work them out eight times over.
+ */
+function posesOf(body: SolverBody, stamp: number): readonly ColliderPose[] {
+  const poses = body.colliderPoses;
+  if (body.posesStamp === stamp) return poses;
+  const colliders = body.colliders;
+  while (poses.length < colliders.length) poses.push({ position: new Vector3(), quaternion: new Quaternion(), rotation: new Matrix3(), owner: undefined });
+  for (let index = 0; index < colliders.length; index++) colliders[index]!.poseIn(body, poses[index]!);
+  body.posesStamp = stamp;
+  return poses;
 }
 
 /** Wakes `sleeper` if `other` is awake and moving faster than `wakeSpeed`. */
