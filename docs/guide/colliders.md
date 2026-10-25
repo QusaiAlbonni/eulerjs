@@ -202,7 +202,7 @@ scene.add(new THREE.Mesh(terrain.toGeometry(), groundMaterial)); // draw exactly
 
 - `heights[row][column]` are heights along the collider's y axis, rows running along z and
   columns along x. Every row needs the same number of columns, and at least two of each.
-- `cellSize` is the distance between neighbouring points, along both x and z.
+- `cellSize` is the distance between neighbouring points along x, and along z too unless `cellDepth` gives another for z.
 - `thickness` (1 m by default) is how deep below its lowest point the terrain counts as solid,
   so whatever sinks into it, however far, is still pushed back out of the top.
 - `surfaceHeight(localX, localZ)` is the ground's height at a point of the collider's frame, or

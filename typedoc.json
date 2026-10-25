@@ -6,7 +6,8 @@
     "packages/marine/src/index.ts",
     "packages/marine/src/webgpu/index.ts",
     "packages/vehicle/src/index.ts",
-    "packages/bvh/src/index.ts"
+    "packages/bvh/src/index.ts",
+    "packages/scene/src/index.ts"
   ],
   "tsconfig": "tsconfig.typedoc.json",
   "name": "eulerjs API",

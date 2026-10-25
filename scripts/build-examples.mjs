@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const base = process.env.SITE_BASE ?? '/eulerjs/';
 const builtExamples = `${root}docs/.vitepress/built-examples`;
-const examples = ['basics', 'sailboat', 'city', 'f1', 'wedding', 'ocean'];
+const examples = ['basics', 'three-addons', 'sailboat', 'city', 'f1', 'wedding', 'ocean'];
 
 for (const example of examples) {
   const out = `${builtExamples}/${example}`;

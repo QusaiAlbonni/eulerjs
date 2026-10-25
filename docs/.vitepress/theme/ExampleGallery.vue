@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { withBase } from 'vitepress';
-import { BASICS, GAMES, TOOLS } from '../examples.js';
+import { BASICS, GAMES, THREE_ADDONS, TOOLS } from '../examples.js';
 import type { Example } from '../examples.js';
 
-const props = defineProps<{ group: 'games' | 'basics' | 'tools' }>();
-const examples = computed<Example[]>(() => ({ games: GAMES, basics: BASICS, tools: TOOLS })[props.group]);
+const props = defineProps<{ group: 'games' | 'basics' | 'three-addons' | 'tools' }>();
+const examples = computed<Example[]>(() => ({ games: GAMES, basics: BASICS, 'three-addons': THREE_ADDONS, tools: TOOLS })[props.group]);
 </script>
 
 <template>

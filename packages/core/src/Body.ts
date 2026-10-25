@@ -5,13 +5,8 @@ import { geometryOfObject } from './geometry.js';
 import { MassProperties } from './MassProperties.js';
 import type { MassSpecification } from './MassProperties.js';
 import { Voxels } from './Voxels.js';
-import { BoxCollider } from './colliders/BoxCollider.js';
-import { ConvexCollider } from './colliders/ConvexCollider.js';
 import type { Collider } from './colliders/Collider.js';
-import { SphereCollider } from './colliders/SphereCollider.js';
-import { CapsuleCollider } from './colliders/CapsuleCollider.js';
-import { ConeCollider } from './colliders/ConeCollider.js';
-import { CylinderCollider } from './colliders/CylinderCollider.js';
+import { fitCollider } from './colliders/fitCollider.js';
 import type { Behavior } from './plugins.js';
 import { RigidBodyState } from './RigidBodyState.js';
 import type { BodyType } from './RigidBodyState.js';
@@ -495,28 +490,7 @@ function collidersFor(collider: ObjectBodyOptions['collider'], geometry: BufferG
   if (collider === undefined) return [];
   if (typeof collider !== 'string') return Array.isArray(collider) ? [...collider] : [collider as Collider];
   if (!geometry) throw new InvalidMeshError(`collider: '${collider}' is fitted to the object's meshes, and it has none`);
-  if (collider === 'convex') return [ConvexCollider.fromGeometry(geometry)];
-  if (collider === 'sphere') {
-    geometry.computeBoundingSphere();
-    const sphere = geometry.boundingSphere!;
-    return [new SphereCollider({ radius: sphere.radius, offset: sphere.center })];
-  }
-  geometry.computeBoundingBox();
-  const bounds = geometry.boundingBox!;
-  const size = bounds.getSize(new Vector3());
-  const offset = bounds.getCenter(new Vector3());
-  // round shapes stand along y, as three.js's cylinder, cone and capsule geometries do, as wide as the wider of x and z
-  const radius = Math.max(size.x, size.z) / 2;
-  switch (collider) {
-    case 'box':
-      return [new BoxCollider({ size, offset })];
-    case 'cylinder':
-      return [new CylinderCollider({ radius, height: size.y, offset })];
-    case 'cone':
-      return [new ConeCollider({ radius, height: size.y, offset })];
-    case 'capsule':
-      return [new CapsuleCollider({ radius, length: Math.max(0, size.y - 2 * radius), offset })];
-  }
+  return [fitCollider(collider, geometry)];
 }
 
 /** Mass properties of a closed mesh; of the colliders, if it isn't closed and they are solid. */

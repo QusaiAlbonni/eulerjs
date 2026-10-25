@@ -98,6 +98,19 @@ describe('heightfields', () => {
     expect(() => new HeightfieldCollider({ heights: [[0, 0], [0]], cellSize: 1 })).toThrow(RangeError);
     expect(() => new HeightfieldCollider({ heights: [[0, 0], [0, Number.NaN]], cellSize: 1 })).toThrow(RangeError);
     expect(() => new HeightfieldCollider({ heights: [[0, 0], [0, 0]], cellSize: 0 })).toThrow(RangeError);
+    expect(() => new HeightfieldCollider({ heights: [[0, 0], [0, 0]], cellSize: 1, cellDepth: 0 })).toThrow(RangeError);
+  });
+
+  it('spaces its rows by cellDepth where that is given', () => {
+    // three columns 2 m apart along x, five rows 0.5 m apart along z, rising 1 m a row
+    const heights = Array.from({ length: 5 }, (_unused, row) => [row, row, row]);
+    const field = new HeightfieldCollider({ heights, cellSize: 2, cellDepth: 0.5 });
+    expect(field.width).toBe(4);
+    expect(field.depth).toBe(2);
+    expectVectorClose(field.pointAt(4, 2, new Vector3()), new Vector3(2, 4, 1), 1e-12);
+    expect(field.surfaceHeight(0.3, 0.25)).toBeCloseTo(2.5, 12);
+    expect(field.surfaceHeight(0, 1.1)).toBeUndefined();
+    expect(field.surfaceHeight(1.9, 0)).toBeCloseTo(2, 12);
   });
 });
 
@@ -142,6 +155,19 @@ describe.each<JavaScriptBackendOptions['solver']>(['xpbd', 'soft-step'])('height
     // still on the surface: its centre a radius from it, measured square to the slope
     const surface = field.surfaceHeight(ball.position.x, ball.position.z)!;
     expect((ball.position.y - surface) * Math.cos(tilt)).toBeCloseTo(0.5, 2);
+  });
+
+  it('rests a box on cells longer along x than along z where the surface is', () => {
+    // a gentle rise along z, its cells 2 m by 0.5 m
+    const heights = Array.from({ length: 21 }, (_unused, row) => Array.from({ length: 6 }, () => 0.05 * row));
+    const world = new World({ backend: new JavaScriptBackend({ solver }) });
+    const field = new HeightfieldCollider({ heights, cellSize: 2, cellDepth: 0.5, friction: 0.9 });
+    world.addBody(new Body({ type: 'static', colliders: [field] }));
+    const crate = world.addBody(new Body({ massProperties: MassProperties.box(new Vector3(1, 1, 1), 10), position: new Vector3(0.7, 2, 1.3), colliders: [new BoxCollider({ size: new Vector3(1, 1, 1), friction: 0.9 })] }));
+    for (let step = 0; step < 300; step++) world.fixedStep();
+    const tilt = Math.atan(0.05 / 0.5);
+    expect((crate.position.y - field.surfaceHeight(crate.position.x, crate.position.z)!) * Math.cos(tilt)).toBeCloseTo(0.5, 2);
+    expect(crate.velocity.length()).toBeLessThan(0.01);
   });
 
   it('holds a box still on a hillside gentler than its friction angle', () => {

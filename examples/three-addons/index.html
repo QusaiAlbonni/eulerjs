@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eulerjs · three.js's physics examples</title>
+    <style>
+      body { margin: 0; padding: 32px 16px; background: #11151c; color: #d8dee9; font-family: system-ui, sans-serif; }
+      main { max-width: 640px; margin: 0 auto; }
+      a { color: #88c0d0; }
+      li { margin-bottom: 12px; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>three.js's physics examples, on eulerjs</h1>
+      <p>
+        three.js's own physics examples, copied as they are, with one change: they
+        <code>await EulerPhysics()</code> from <code>@eulerjs/scene</code> where they awaited
+        <code>RapierPhysics()</code>. The rest of each is three.js's code, untouched.
+      </p>
+      <ol>
+        <li><a href="basic.html">basic</a>: boxes, balls and rounded boxes dropped onto a floor, one a second. (Its <code>RapierHelper</code>, which draws Rapier's own debug lines, is left out.)</li>
+        <li><a href="instancing.html">instancing</a>: hundreds of instanced boxes and balls, respawned with <code>setMeshPosition</code> and shaken with <code>applyImpulse</code>. three.js's Jolt and Ammo instancing examples are this one with another import.</li>
+        <li><a href="terrain.html">terrain</a>: spheres, boxes and cylinders tumbling down an <code>addHeightfield</code> terrain.</li>
+      </ol>
+      <p>The examples are three.js's, MIT licensed, © 2010-2026 three.js authors.</p>
+    </main>
+  </body>
+</html>

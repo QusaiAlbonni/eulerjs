@@ -7,6 +7,7 @@
       "@eulerjs/core": ["./packages/core/src/index.ts"],
       "@eulerjs/core/extend": ["./packages/core/src/extend.ts"],
       "@eulerjs/bvh": ["./packages/bvh/src/index.ts"],
+      "@eulerjs/scene": ["./packages/scene/src/index.ts"],
       "@eulerjs/vehicle": ["./packages/vehicle/src/index.ts"],
       "@eulerjs/marine": ["./packages/marine/src/index.ts"],
       "@eulerjs/marine/webgpu": ["./packages/marine/src/webgpu/index.ts"]

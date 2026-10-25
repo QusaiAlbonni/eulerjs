@@ -6,11 +6,12 @@
     "packages/core",
     "packages/marine",
     "packages/bvh",
+    "packages/scene",
     "packages/vehicle",
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run build -w @eulerjs/core && npm run build -w @eulerjs/marine && npm run build -w @eulerjs/bvh && npm run build -w @eulerjs/vehicle",
+    "build": "npm run build -w @eulerjs/core && npm run build -w @eulerjs/marine && npm run build -w @eulerjs/bvh && npm run build -w @eulerjs/scene && npm run build -w @eulerjs/vehicle",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
@@ -23,6 +24,7 @@
     "dev:city": "npm run dev -w city-example",
     "dev:wedding": "npm run dev -w wedding-example",
     "dev:ocean": "npm run dev -w ocean-example",
+    "dev:three-addons": "npm run dev -w three-addons-examples",
     "dev:f1": "npm run dev -w f1-example",
     "check": "npm run lint && npm run typecheck && npm run coverage && npm run build",
     "changeset": "changeset",

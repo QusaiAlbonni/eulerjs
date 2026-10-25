@@ -95,6 +95,22 @@ export const BASICS: Example[] = [
   basic('solvers', 'Solvers', 'The same stack and pendulum solved by XPBD and by soft step, side by side.', ['soft step', 'XPBD']),
 ];
 
+const fromThree = (id: string, title: string, description: string, tags: string[]): Example => ({
+  id: `three-addons-${id}`,
+  title,
+  description,
+  path: `examples/three-addons/${id}.html`,
+  source: file(`examples/three-addons/${id}.html`),
+  tags,
+});
+
+/** three.js's own physics examples, as they are but for awaiting EulerPhysics in place of RapierPhysics. */
+export const THREE_ADDONS: Example[] = [
+  fromThree('basic', 'three.js: basic', 'three.js’s own example of boxes, balls and rounded boxes dropped onto a floor, one a second, on EulerPhysics in place of RapierPhysics.', ['EulerPhysics', 'userData.physics']),
+  fromThree('instancing', 'three.js: instancing', 'three.js’s own example of 800 instanced boxes and balls, respawned with setMeshPosition and shaken with applyImpulse, on EulerPhysics.', ['EulerPhysics', 'InstancedMesh']),
+  fromThree('terrain', 'three.js: terrain', 'three.js’s own example of spheres, boxes and cylinders tumbling down a heightfield made by addHeightfield, on EulerPhysics.', ['EulerPhysics', 'heightfield']),
+];
+
 /** Pages that measure rather than show. */
 export const TOOLS: Example[] = [
   {

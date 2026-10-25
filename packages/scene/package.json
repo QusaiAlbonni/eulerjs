@@ -1,0 +1,49 @@
+{
+  "name": "@eulerjs/scene",
+  "version": "0.0.0",
+  "description": "Physics for a three.js scene, read from it: userData.physics, and a drop-in for three.js's RapierPhysics, JoltPhysics and AmmoPhysics",
+  "type": "module",
+  "license": "MIT",
+  "author": "Qusay Albonni",
+  "homepage": "https://qusaialbonni.github.io/eulerjs/scene",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QusaiAlbonni/eulerjs.git",
+    "directory": "packages/scene"
+  },
+  "bugs": {
+    "url": "https://github.com/QusaiAlbonni/eulerjs/issues"
+  },
+  "keywords": [
+    "physics",
+    "three",
+    "threejs",
+    "scene",
+    "gltf",
+    "eulerjs"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@eulerjs/core": "^0.2.0",
+    "@eulerjs/bvh": "^0.1.2",
+    "three": ">=0.166.0",
+    "three-mesh-bvh": ">=0.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -11,6 +11,7 @@ export default defineConfig({
       { find: /^@eulerjs\/core\/extend$/, replacement: sourceOf('core', 'extend') },
       { find: /^@eulerjs\/marine$/, replacement: sourceOf('marine') },
       { find: /^@eulerjs\/bvh$/, replacement: sourceOf('bvh') },
+      { find: /^@eulerjs\/scene$/, replacement: sourceOf('scene') },
       { find: /^@eulerjs\/vehicle$/, replacement: sourceOf('vehicle') },
     ],
   },

@@ -2,7 +2,7 @@ import { cpSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 import type { DefaultTheme } from 'vitepress';
-import { BASICS, GAMES, REPOSITORY, TOOLS } from './examples.js';
+import { BASICS, GAMES, REPOSITORY, THREE_ADDONS, TOOLS } from './examples.js';
 import { serveExamples } from './serveExamples.js';
 
 // The site lives at https://qusaialbonni.github.io/eulerjs/; SITE_BASE overrides it, for a fork or a custom domain.
@@ -60,6 +60,7 @@ const plugins: DefaultTheme.SidebarItem[] = [
   },
   { text: '@eulerjs/vehicle', items: [{ text: 'Ray-cast vehicles', link: '/vehicle' }] },
   { text: '@eulerjs/bvh', items: [{ text: 'Triangle meshes', link: '/bvh' }] },
+  { text: '@eulerjs/scene', items: [{ text: 'Physics from a scene', link: '/scene' }] },
 ];
 
 export default defineConfig({
@@ -88,7 +89,7 @@ export default defineConfig({
       serveExamples(
         builtExamples,
         base,
-        new Set([...GAMES, ...BASICS, ...TOOLS].map((example) => example.path.split('/')[1] ?? '')),
+        new Set([...GAMES, ...BASICS, ...THREE_ADDONS, ...TOOLS].map((example) => example.path.split('/')[1] ?? '')),
       ),
     ],
     // the landing page's live sea runs against the engine's sources, as the examples do
@@ -109,7 +110,7 @@ export default defineConfig({
     logo: '/logo.png',
     nav: [
       { text: 'Guide', link: '/guide/getting-started', activeMatch: '^/guide/' },
-      { text: 'Plugins', link: '/marine/', activeMatch: '^/(marine|vehicle|bvh)' },
+      { text: 'Plugins', link: '/marine/', activeMatch: '^/(marine|vehicle|bvh|scene)' },
       { text: 'Examples', link: '/examples/', activeMatch: '^/examples/' },
       { text: 'API', link: '/api/', activeMatch: '^/api/' },
     ],
@@ -118,6 +119,7 @@ export default defineConfig({
       '/marine/': plugins,
       '/vehicle': plugins,
       '/bvh': plugins,
+      '/scene': plugins,
       '/api/': [{ text: 'API reference', items: apiSidebar() }],
     },
     socialLinks: [{ icon: 'github', link: REPOSITORY }],

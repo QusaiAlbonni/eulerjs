@@ -11,8 +11,10 @@ export interface HeightfieldColliderOptions extends ColliderOptions {
    * there must be at least two of each.
    */
   heights: readonly (readonly number[])[];
-  /** Distance between neighbouring points, along both x and z. */
+  /** Distance between neighbouring points along x, and along z too unless `cellDepth` is given. */
   cellSize: number;
+  /** Distance between neighbouring rows, along z, where it isn't `cellSize`. */
+  cellDepth?: number | undefined;
   /**
    * How deep below its lowest point the terrain counts as solid, so that whatever sinks into it,
    * however far, is still pushed back out of the top. Defaults to 1 m.
@@ -31,7 +33,10 @@ export class HeightfieldCollider extends Collider {
   readonly shape = 'heightfield';
   readonly rows: number;
   readonly columns: number;
+  /** Distance between neighbouring columns, along x. */
   readonly cellSize: number;
+  /** Distance between neighbouring rows, along z. */
+  readonly cellDepth: number;
   readonly thickness: number;
   private readonly heights: Float64Array;
   private readonly lowest: number;
@@ -44,9 +49,11 @@ export class HeightfieldCollider extends Collider {
     if (rows < 2 || columns < 2) throw new RangeError(`a heightfield needs at least 2 rows and 2 columns, got ${rows} by ${columns}`);
     if (options.heights.some((row) => row.length !== columns)) throw new RangeError('every row of a heightfield needs the same number of columns');
     if (!(options.cellSize > 0)) throw new RangeError(`cellSize must be positive, got ${options.cellSize}`);
+    if (options.cellDepth !== undefined && !(options.cellDepth > 0)) throw new RangeError(`cellDepth must be positive, got ${options.cellDepth}`);
     this.rows = rows;
     this.columns = columns;
     this.cellSize = options.cellSize;
+    this.cellDepth = options.cellDepth ?? options.cellSize;
     this.thickness = options.thickness ?? 1;
     if (!(this.thickness >= 0)) throw new RangeError(`thickness must not be negative, got ${this.thickness}`);
     this.heights = Float64Array.from(options.heights.flat());
@@ -62,7 +69,7 @@ export class HeightfieldCollider extends Collider {
 
   /** Depth along z, from the first row to the last. */
   get depth(): number {
-    return (this.rows - 1) * this.cellSize;
+    return (this.rows - 1) * this.cellDepth;
   }
 
   get boundingRadius(): number {
@@ -76,13 +83,13 @@ export class HeightfieldCollider extends Collider {
 
   /** Writes the grid point in the collider's frame. */
   pointAt(row: number, column: number, target: Vector3): Vector3 {
-    return target.set(column * this.cellSize - this.width / 2, this.heightAt(row, column), row * this.cellSize - this.depth / 2);
+    return target.set(column * this.cellSize - this.width / 2, this.heightAt(row, column), row * this.cellDepth - this.depth / 2);
   }
 
   /** The surface's height above the point (`localX`, `localZ`) of the collider's frame, or undefined off the grid. */
   surfaceHeight(localX: number, localZ: number): number | undefined {
     const column = (localX + this.width / 2) / this.cellSize;
-    const row = (localZ + this.depth / 2) / this.cellSize;
+    const row = (localZ + this.depth / 2) / this.cellDepth;
     if (column < 0 || row < 0 || column > this.columns - 1 || row > this.rows - 1) return undefined;
     const cellColumn = Math.min(Math.floor(column), this.columns - 2);
     const cellRow = Math.min(Math.floor(row), this.rows - 2);
@@ -105,8 +112,8 @@ export class HeightfieldCollider extends Collider {
     if (minimum.y > this.highest) return;
     const firstColumn = Math.max(0, Math.floor((minimum.x + this.width / 2) / this.cellSize));
     const lastColumn = Math.min(this.columns - 2, Math.floor((maximum.x + this.width / 2) / this.cellSize));
-    const firstRow = Math.max(0, Math.floor((minimum.z + this.depth / 2) / this.cellSize));
-    const lastRow = Math.min(this.rows - 2, Math.floor((maximum.z + this.depth / 2) / this.cellSize));
+    const firstRow = Math.max(0, Math.floor((minimum.z + this.depth / 2) / this.cellDepth));
+    const lastRow = Math.min(this.rows - 2, Math.floor((maximum.z + this.depth / 2) / this.cellDepth));
     const near = new Vector3();
     const across = new Vector3();
     const along = new Vector3();

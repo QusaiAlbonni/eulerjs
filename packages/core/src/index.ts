@@ -42,6 +42,7 @@ export { SphereCollider } from './colliders/SphereCollider.js';
 export type { SphereColliderOptions } from './colliders/SphereCollider.js';
 export { PlaneCollider } from './colliders/PlaneCollider.js';
 export { ConvexCollider } from './colliders/ConvexCollider.js';
+export { fitCollider } from './colliders/fitCollider.js';
 export type { ConvexColliderOptions, ConvexFace } from './colliders/ConvexCollider.js';
 export type { Contact, PhysicsBackend, SensorOverlap, StepSettings } from './backend.js';
 export type { ContactEvent, JointBreakEvent, SensorEvent, WorldEventListener, WorldEventName, WorldEvents } from './events.js';

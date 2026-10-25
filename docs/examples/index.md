@@ -22,6 +22,7 @@ npm run dev:f1       # the formula car at Monza
 npm run dev:wedding  # the wedding
 npm run dev:ocean    # the spectral ocean
 npm run dev:basics   # the short examples
+npm run dev:three-addons  # three.js's own physics examples
 ```
 :::
 
@@ -36,6 +37,13 @@ Complete games built only on the public API: what the engine is for.
 Short examples, one idea each, in plain three.js.
 
 <ExampleGallery group="basics" />
+
+## three.js's own examples
+
+three.js's physics examples, copied as they are with one change: they `await EulerPhysics()`, from
+[`@eulerjs/scene`](/scene), where they awaited `RapierPhysics()`.
+
+<ExampleGallery group="three-addons" />
 
 ## Tools
 
