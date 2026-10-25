@@ -1,6 +1,6 @@
 {
   "name": "@eulerjs/vehicle",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Ray-cast vehicles for eulerjs: wheels on springs, tyres with grip",
   "type": "module",
   "license": "MIT",
@@ -38,7 +38,7 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "@eulerjs/core": "^0.2.0",
+    "@eulerjs/core": "^0.3.0",
     "three": ">=0.166.0"
   },
   "publishConfig": {
