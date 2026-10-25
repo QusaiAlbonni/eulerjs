@@ -41,6 +41,7 @@ const MAX_ITERATIONS = 64;
 const RELATIVE_TOLERANCE = 1e-14;
 
 const localDirection = new Vector3();
+const nearer = new Vector3();
 
 /** The support shape of a convex collider at `pose`, or undefined for shapes that aren't convex solids: planes, heightfields, meshes. */
 export function supportShapeOf(collider: Collider, pose: ColliderPose): SupportShape | undefined {
@@ -138,12 +139,16 @@ export function shapeDistance(shapeA: SupportShape, shapeB: SupportShape): Shape
     // no point of the difference is nearer the origin than `closest` by more than rounding: done
     if (simplex.length > 0 && closestSquared - closest.dot(difference) <= RELATIVE_TOLERANCE * closestSquared) break;
     if (simplex.some((point) => point.difference.distanceToSquared(difference) < 1e-24)) break;
-    simplex.push({ difference, onA, onB });
-    const reduced = nearestToOrigin(simplex);
+    const reduced = nearestToOrigin([...simplex, { difference, onA, onB }]);
+    nearer.set(0, 0, 0);
+    reduced.simplex.forEach((point, index) => nearer.addScaledVector(point.difference, reduced.weights[index]!));
+    // Each step comes nearer the origin, or GJK is done. A step that doesn't is rounding in a
+    // simplex gone flat, a support point all but repeated (as a cone's rim point is, close to its
+    // side), and its nearest point can be anywhere: the last simplex stands.
+    if (simplex.length > 0 && reduced.simplex.length < 4 && nearer.lengthSq() >= closestSquared) break;
     simplex = reduced.simplex;
     weights = reduced.weights;
-    closest.set(0, 0, 0);
-    simplex.forEach((point, index) => closest.addScaledVector(point.difference, weights[index]!));
+    closest.copy(nearer);
     if (simplex.length === 4 || closest.lengthSq() < 1e-24) {
       overlapping = true;
       break;

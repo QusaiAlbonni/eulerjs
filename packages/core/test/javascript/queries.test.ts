@@ -51,6 +51,30 @@ describe('ray casts', () => {
     }
   });
 
+  it('hit a round shape or a hull from every way round, aimed through it', () => {
+    // a cone's side is where GJK once went wrong: the nearest point on its tip-to-rim line, a rim point all but repeated
+    const shapes = [
+      new ConeCollider({ radius: 0.5, height: 1 }),
+      new CylinderCollider({ radius: 0.5, height: 1 }),
+      new CapsuleCollider({ radius: 0.3, length: 1 }),
+      new ConvexCollider({ points: [new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, -1, 0), new Vector3(0, 0, 1), new Vector3(0, 0, -1)] }),
+    ];
+    for (const shape of shapes) {
+      const world = new World();
+      world.addBody(new Body({ type: 'static', colliders: [shape] }));
+      let misses = 0;
+      for (let index = 0; index < 600; index++) {
+        const upward = 1 - (2 * (index + 0.5)) / 600;
+        const around = index * Math.PI * (3 - Math.sqrt(5));
+        const direction = new Vector3(Math.cos(around) * Math.sqrt(1 - upward * upward), upward, Math.sin(around) * Math.sqrt(1 - upward * upward));
+        // through a point inside the shape, a little off its middle
+        const through = new Vector3(0.05, -0.1, 0.03);
+        if (!world.castRay(through.clone().addScaledVector(direction, 5), direction.clone().negate())) misses++;
+      }
+      expect(misses, shape.shape).toBe(0);
+    }
+  });
+
   it('agree with three.js on random rays at a turned box', () => {
     let seed = 3;
     const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
