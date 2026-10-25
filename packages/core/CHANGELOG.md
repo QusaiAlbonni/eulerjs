@@ -1,5 +1,19 @@
 # @eulerjs/core
 
+## 0.3.0
+
+### Minor Changes
+
+- [`c402dc9`](https://github.com/QusaiAlbonni/eulerjs/commit/c402dc9fad3cfff4cab3549e377875b0b0049b1d) - `fitCollider(shape, geometry, options)` fits a box, sphere, hull, cylinder, cone or capsule around a geometry, as `world.addBody(object, { collider: 'box' })` does, with the collider's other options (its friction, say) given. A `HeightfieldCollider` takes `cellDepth` for rows spaced otherwise than its columns, for terrain whose cells aren't square.
+
+- [`a44f38c`](https://github.com/QusaiAlbonni/eulerjs/commit/a44f38cbde46fc9ab1cede86b0b2f41d5d3af75a) - Under soft step, bodies that touch or are joined sleep and wake as islands: a pile falls asleep only once every body of it is still, all at once, and waking any of it wakes all of it, so a pile is never half asleep, its sleeping half an immovable wall to the rest (a box sliding across a still slab used to put the slab to sleep under it, and wake it, every half second). Static bodies hold things up without joining islands, so piles on the same floor sleep on their own. XPBD still sleeps touching bodies one by one, since its tall stacks creep too much to be still all at once. Finding contacts now makes almost no objects a step (contact points, manifolds and pairs are reused, and each collider's pose is worked out once a step), halving the garbage a busy scene makes.
+
+### Patch Changes
+
+- [`a44f38c`](https://github.com/QusaiAlbonni/eulerjs/commit/a44f38cbde46fc9ab1cede86b0b2f41d5d3af75a) - Faster stepping: joints with limits, drives or friction are solved over flat arrays rather than three.js vectors, and their lengths found by `Math.sqrt` rather than `Math.hypot` (a scene of every kind of joint steps 42% faster, holding its axes and limits as closely as before), ball joints that are nothing more 22% faster, the contact solver reads each manifold's two bodies once for all its points (a 1,015-box pyramid 13% faster), and the hull test passes over faces that cannot be the one that separates most.
+
+- [`3d9727c`](https://github.com/QusaiAlbonni/eulerjs/commit/3d9727c0ad0e1ea2a1771f2c7e9570e677093f5c) - A ray or shape cast that ended within microns of a cone's side, or along any edge GJK finds the nearest point on, could miss what it was aimed straight through: four rays in 600 at a cone did. GJK no longer takes a step that brings it no nearer, as rounding in a simplex gone flat can, and keeps the nearest points it had.
+
 ## 0.2.0
 
 ### Minor Changes

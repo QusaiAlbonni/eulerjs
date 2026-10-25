@@ -1,6 +1,6 @@
 {
   "name": "@eulerjs/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Rigid body physics for three.js, with exact mass properties for arbitrary closed meshes",
   "type": "module",
   "license": "MIT",

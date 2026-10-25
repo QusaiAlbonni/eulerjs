@@ -1,5 +1,12 @@
 # @eulerjs/bvh
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [[`a44f38c`](https://github.com/QusaiAlbonni/eulerjs/commit/a44f38cbde46fc9ab1cede86b0b2f41d5d3af75a), [`c402dc9`](https://github.com/QusaiAlbonni/eulerjs/commit/c402dc9fad3cfff4cab3549e377875b0b0049b1d), [`3d9727c`](https://github.com/QusaiAlbonni/eulerjs/commit/3d9727c0ad0e1ea2a1771f2c7e9570e677093f5c), [`a44f38c`](https://github.com/QusaiAlbonni/eulerjs/commit/a44f38cbde46fc9ab1cede86b0b2f41d5d3af75a)]:
+  - @eulerjs/core@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes
